@@ -1,0 +1,10 @@
+[
+  { "name": "食材", "isDefault": true, "defaultExpiryAlertDays": 3 },
+  { "name": "調味料", "isDefault": true, "defaultExpiryAlertDays": 7 },
+  { "name": "飲料", "isDefault": true, "defaultExpiryAlertDays": 14 },
+  { "name": "零食", "isDefault": true, "defaultExpiryAlertDays": 14 },
+  { "name": "清潔用品", "isDefault": true, "defaultExpiryAlertDays": 30 },
+  { "name": "衛生用品", "isDefault": true, "defaultExpiryAlertDays": 30 },
+  { "name": "罐頭/乾貨", "isDefault": true, "defaultExpiryAlertDays": 14 },
+  { "name": "冷凍食品", "isDefault": true, "defaultExpiryAlertDays": 7 }
+]

@@ -1,0 +1,157 @@
+// packages/database/prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ──────────────────────────────────────
+// 物品分類
+// ──────────────────────────────────────
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  isDefault   Boolean  @default(false)
+  // 預設到期提醒天數（依品類建議，item 可覆寫）
+  defaultExpiryAlertDays Int @default(7)
+  items       Item[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ──────────────────────────────────────
+// 物品
+// ──────────────────────────────────────
+model Item {
+  id                 String         @id @default(cuid())
+  name               String         @unique
+  categoryId         String
+  category           Category       @relation(fields: [categoryId], references: [id])
+  // 允許同一物品有多個單位（以 JSON 陣列儲存，第一個為主要單位）
+  units              String[]
+  // 底層僅追蹤總量（主要單位）
+  totalQuantity      Float          @default(0)
+  // 消耗速率（每週，主要單位）
+  consumptionRate    Float?
+  // 物品層級到期提醒天數（null 表示繼承品類設定）
+  expiryAlertDays    Int?
+  // 安全水位倍數（相對於消耗速率，預設 2 週）
+  safetyStockWeeks   Float          @default(2)
+  // 建議採購量倍數（相對於消耗速率，預設 2 週）
+  purchaseSuggestionWeeks Float     @default(2)
+
+  expiryBatches      ExpiryBatch[]
+  consumptionLogs    ConsumptionLog[]
+  purchaseListItems  PurchaseListItem[]
+  receiptMappings    ReceiptMapping[]
+
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+}
+
+// ──────────────────────────────────────
+// 到期日批次
+// ──────────────────────────────────────
+model ExpiryBatch {
+  id         String    @id @default(cuid())
+  itemId     String
+  item       Item      @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  quantity   Float
+  unit       String
+  expiryDate DateTime?
+  // 是否已通知即將到期
+  alertSent  Boolean   @default(false)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([itemId])
+  @@index([expiryDate])
+}
+
+// ──────────────────────────────────────
+// 消耗紀錄
+// ──────────────────────────────────────
+model ConsumptionLog {
+  id           String   @id @default(cuid())
+  itemId       String
+  item         Item     @relation(fields: [itemId], references: [id])
+  quantity     Float
+  unit         String
+  // 使用的到期批次（FIFO 自動選 or 用戶指定）
+  expiryDate   DateTime?
+  note         String?
+  // 是否為系統自動推估（用戶未回覆每日確認時）
+  isEstimated  Boolean  @default(false)
+  consumedAt   DateTime @default(now())
+
+  @@index([itemId])
+  @@index([consumedAt])
+}
+
+// ──────────────────────────────────────
+// 採購清單（每次採購週期產生一筆）
+// ──────────────────────────────────────
+model PurchaseList {
+  id          String             @id @default(cuid())
+  status      PurchaseListStatus @default(PENDING)
+  generatedAt DateTime           @default(now())
+  completedAt DateTime?
+  items       PurchaseListItem[]
+}
+
+model PurchaseListItem {
+  id             String            @id @default(cuid())
+  purchaseListId String
+  purchaseList   PurchaseList      @relation(fields: [purchaseListId], references: [id], onDelete: Cascade)
+  itemId         String
+  item           Item              @relation(fields: [itemId], references: [id])
+  suggestedQty   Float
+  unit           String
+  urgency        PurchaseUrgency
+  reason         String
+  status         PurchaseItemStatus @default(PENDING)
+
+  @@index([purchaseListId])
+}
+
+enum PurchaseListStatus {
+  PENDING
+  COMPLETED
+}
+
+enum PurchaseUrgency {
+  URGENT      // 下次採購前用完
+  SUGGESTED   // 下下次採購前用完
+  EXPIRY      // 即將過期建議補貨
+}
+
+enum PurchaseItemStatus {
+  PENDING
+  COMPLETED
+  SKIPPED
+}
+
+// ──────────────────────────────────────
+// 收據品名對應紀錄
+// ──────────────────────────────────────
+model ReceiptMapping {
+  id           String   @id @default(cuid())
+  receiptName  String   @unique  // 收據上的品名
+  itemId       String
+  item         Item     @relation(fields: [itemId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// ──────────────────────────────────────
+// 對話狀態（僅用於複雜流程，主要狀態存 Redis）
+// ──────────────────────────────────────
+model ConversationSession {
+  id        String   @id  // LINE groupId / userId
+  state     Json     // 對話狀態 JSON
+  expiresAt DateTime
+  updatedAt DateTime @updatedAt
+}

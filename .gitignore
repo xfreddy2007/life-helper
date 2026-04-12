@@ -47,7 +47,7 @@ Thumbs.db
 *.swo
 
 # Prisma
-prisma/migrations/
+# Note: prisma/migrations/ is intentionally NOT ignored — migration files must be committed
 
 # TypeScript
 *.tsbuildinfo

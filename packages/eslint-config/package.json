@@ -1,0 +1,16 @@
+{
+  "name": "@life-helper/eslint-config",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "files": [
+    "base.js",
+    "node.js"
+  ],
+  "dependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint-config-prettier": "^10.1.0",
+    "typescript-eslint": "^8.58.0"
+  }
+}

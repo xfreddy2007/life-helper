@@ -1,0 +1,2 @@
+npm run check-types --workspace=apps/bot
+npx lint-staged

@@ -1,0 +1,21 @@
+{
+  "name": "@life-helper/database",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed/seed.ts",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0"
+  },
+  "devDependencies": {
+    "@life-helper/typescript-config": "*",
+    "prisma": "^6.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "5.8.3"
+  }
+}

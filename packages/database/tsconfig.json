@@ -1,0 +1,5 @@
+{
+  "extends": "@life-helper/typescript-config/node.json",
+  "include": ["src/**/*", "prisma/**/*", "repositories/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

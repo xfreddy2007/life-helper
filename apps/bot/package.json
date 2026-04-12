@@ -1,0 +1,46 @@
+{
+  "name": "bot",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "start": "node --enable-source-maps dist/main.js",
+    "dev": "tsx watch src/main.ts",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src --max-warnings 0",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@life-helper/contracts": "*",
+    "@life-helper/database": "*",
+    "@line/bot-sdk": "^9.0.0",
+    "@sentry/node": "^8.0.0",
+    "@t3-oss/env-core": "^0.11.0",
+    "@ts-rest/core": "^3.51.0",
+    "@ts-rest/express": "^3.51.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.0",
+    "express-rate-limit": "^7.0.0",
+    "ioredis": "^5.3.2",
+    "node-cron": "^3.0.3",
+    "pino": "^9.0.0",
+    "pino-pretty": "^11.0.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@life-helper/eslint-config": "*",
+    "@life-helper/test-utils": "*",
+    "@life-helper/typescript-config": "*",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.0",
+    "@types/node": "^22.0.0",
+    "@types/node-cron": "^3.0.11",
+    "@types/supertest": "^6.0.0",
+    "supertest": "^7.0.0",
+    "tsup": "^8.3.0",
+    "tsx": "^4.19.0",
+    "vitest": "^3.0.0"
+  }
+}

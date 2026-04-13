@@ -1,6 +1,15 @@
 import type { ExpiryBatch } from '@life-helper/database';
 import type { PurchaseRecommendation } from '../services/purchase-advisor.service.js';
 
+// ── Inline types used by Phase 6 format helpers ───────────────
+type DailyEstimateEntry = { itemName: string; dailyQty: number; unit: string };
+type BatchForAlert = {
+  quantity: number;
+  unit: string;
+  expiryDate: Date | null;
+  item: { name: string };
+};
+
 /**
  * Format a date as YYYY/MM/DD (Taiwan locale).
  */
@@ -123,6 +132,54 @@ export function formatPurchaseList(
 
   lines.push('─────────────────');
   lines.push('傳「我這週要買什麼」可隨時查詢');
+
+  return lines.join('\n').trimEnd();
+}
+
+/**
+ * Build the daily consumption confirmation push message.
+ */
+export function formatDailyConfirm(estimates: DailyEstimateEntry[]): string {
+  const lines = ['📋 今日消耗確認', '─────────────────', '依消耗速率估算今日用量：'];
+
+  for (const e of estimates) {
+    const qty = Math.round(e.dailyQty * 100) / 100;
+    lines.push(`• ${e.itemName}：約 ${qty}${e.unit}`);
+  }
+
+  lines.push('─────────────────');
+  lines.push('實際用量不同請直接回覆，例：「今天用了醬油 20ml」');
+  lines.push('若沒有回覆，明早 7 點將自動套用預估值。');
+
+  return lines.join('\n');
+}
+
+/**
+ * Build the expiry alert push message.
+ */
+export function formatExpiryAlert(approaching: BatchForAlert[], expired: BatchForAlert[]): string {
+  const lines: string[] = ['⚠️ 到期提醒', '─────────────────'];
+
+  if (expired.length > 0) {
+    lines.push('🚨 已過期（請盡快處理）');
+    for (const b of expired) {
+      const dateStr = b.expiryDate ? formatDate(b.expiryDate) : '未知日期';
+      lines.push(`• ${b.item.name}：${b.quantity}${b.unit}（${dateStr}）`);
+    }
+    lines.push('');
+  }
+
+  if (approaching.length > 0) {
+    lines.push('📅 即將到期');
+    for (const b of approaching) {
+      const dateStr = b.expiryDate ? formatDate(b.expiryDate) : '未知日期';
+      lines.push(`• ${b.item.name}：${b.quantity}${b.unit}（${dateStr} 到期）`);
+    }
+    lines.push('');
+  }
+
+  lines.push('─────────────────');
+  lines.push('傳「我這週要買什麼」查看採購清單');
 
   return lines.join('\n').trimEnd();
 }

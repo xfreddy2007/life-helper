@@ -8,6 +8,8 @@ import { lineSignatureMiddleware } from './middleware/line-signature.js';
 import { NluService } from './services/nlu/nlu.service.js';
 import { createWebhookRouter } from './routes/webhook.js';
 import { scheduleWeeklyPurchaseReminder } from './cron/weekly-purchase.cron.js';
+import { scheduleDailyConfirmCrons } from './cron/daily-confirm.cron.js';
+import { scheduleExpiryAlertCron } from './cron/expiry-alert.cron.js';
 
 const app = express();
 
@@ -54,6 +56,8 @@ server.listen(env.PORT, () => {
 
   // Start cron jobs after server is up
   scheduleWeeklyPurchaseReminder(lineClient, env.LINE_GROUP_ID);
+  scheduleDailyConfirmCrons(lineClient, env.LINE_GROUP_ID);
+  scheduleExpiryAlertCron(lineClient, env.LINE_GROUP_ID);
 });
 
 // ── Graceful shutdown ──────────────────────────────────────

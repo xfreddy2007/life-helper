@@ -1,5 +1,12 @@
-import { findItemByName, addStock, findOrCreateItem } from '@life-helper/database/repositories';
-import { findCategoryByName, getDefaultCategory } from '@life-helper/database/repositories';
+import {
+  findItemByName,
+  addStock,
+  findOrCreateItem,
+  findCategoryByName,
+  getDefaultCategory,
+  findPendingItemsByItemIds,
+  updatePurchaseListItemStatus,
+} from '@life-helper/database/repositories';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ReplyMessage } from './intent-router.js';
 
@@ -16,6 +23,7 @@ export async function handleRestock(nlu: NluResult): Promise<ReplyMessage[]> {
   }
 
   const results: string[] = [];
+  const restockedItemIds: string[] = [];
 
   for (const entity of itemEntities) {
     const { name, quantity, unit, expiryDate, expiryDays } = entity;
@@ -39,7 +47,6 @@ export async function handleRestock(nlu: NluResult): Promise<ReplyMessage[]> {
     let item = await findItemByName(name);
 
     if (!item) {
-      // Try to match the NLU-provided category, fall back to default
       const categoryName = nlu.entities.category;
       const category = categoryName
         ? ((await findCategoryByName(categoryName)) ?? (await getDefaultCategory()))
@@ -55,6 +62,7 @@ export async function handleRestock(nlu: NluResult): Promise<ReplyMessage[]> {
     }
 
     await addStock(item.id, { quantity, unit, expiryDate: resolvedExpiry });
+    restockedItemIds.push(item.id);
 
     const expStr = resolvedExpiry
       ? `（到期：${resolvedExpiry.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}）`
@@ -62,12 +70,24 @@ export async function handleRestock(nlu: NluResult): Promise<ReplyMessage[]> {
     results.push(`✅ ${name} +${quantity}${unit} ${expStr}`.trimEnd());
   }
 
+  // Auto-complete matching purchase list items
+  const completed: string[] = [];
+  if (restockedItemIds.length > 0) {
+    const pending = await findPendingItemsByItemIds(restockedItemIds);
+    for (const li of pending) {
+      await updatePurchaseListItemStatus(li.id, 'COMPLETED');
+      completed.push(li.item.name);
+    }
+  }
+
   const summary = results.length > 0 ? results.join('\n') : '沒有識別到有效的補貨資訊';
+  const completedNote =
+    completed.length > 0 ? `\n\n✔️ 採購清單已自動標記：${completed.join('、')}` : '';
 
   return [
     {
       type: 'text',
-      text: `🛍️ 補貨完成！\n─────────────────\n${summary}`,
+      text: `🛍️ 補貨完成！\n─────────────────\n${summary}${completedNote}`,
     },
   ];
 }

@@ -1,4 +1,5 @@
 import type { ExpiryBatch } from '@life-helper/database';
+import type { PurchaseRecommendation } from '../services/purchase-advisor.service.js';
 
 /**
  * Format a date as YYYY/MM/DD (Taiwan locale).
@@ -69,4 +70,59 @@ export function formatInventoryList(
   lines.push(`共 ${items.length} 項`);
 
   return lines.join('\n');
+}
+
+/**
+ * Format a purchase recommendation list as a LINE text message.
+ */
+export function formatPurchaseList(
+  recommendations: PurchaseRecommendation[],
+  generatedAt = new Date(),
+): string {
+  if (recommendations.length === 0) {
+    return '🎉 目前庫存充足，不需要採購！';
+  }
+
+  const dateStr = generatedAt.toLocaleDateString('zh-TW', {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    weekday: 'short',
+    timeZone: 'Asia/Taipei',
+  });
+
+  const urgent = recommendations.filter((r) => r.urgency === 'URGENT');
+  const suggested = recommendations.filter((r) => r.urgency === 'SUGGESTED');
+  const expiry = recommendations.filter((r) => r.urgency === 'EXPIRY');
+
+  const lines: string[] = [`🛒 本週採購清單（${dateStr}）`, '─────────────────'];
+
+  if (urgent.length > 0) {
+    lines.push('🔴 急需購買');
+    for (const r of urgent) {
+      lines.push(`• ${r.itemName} ${r.suggestedQty}${r.unit}（${r.reason}）`);
+    }
+    lines.push('');
+  }
+
+  if (expiry.length > 0) {
+    lines.push('⚠️ 即將過期');
+    for (const r of expiry) {
+      lines.push(`• ${r.itemName}（${r.reason}）`);
+    }
+    lines.push('');
+  }
+
+  if (suggested.length > 0) {
+    lines.push('🟡 建議補貨');
+    for (const r of suggested) {
+      lines.push(`• ${r.itemName} ${r.suggestedQty}${r.unit}（${r.reason}）`);
+    }
+    lines.push('');
+  }
+
+  lines.push('─────────────────');
+  lines.push('傳「我這週要買什麼」可隨時查詢');
+
+  return lines.join('\n').trimEnd();
 }

@@ -9,6 +9,7 @@ import {
   handleRecordConsumption,
   handleAnomalyConfirmation,
 } from './record-consumption.handler.js';
+import { handleQueryPurchaseList } from './query-purchase-list.handler.js';
 import { logger } from '../lib/logger.js';
 
 export interface RouterContext {
@@ -62,7 +63,7 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
       return handleRecordConsumption(nluResult, sourceId);
 
     case 'QUERY_PURCHASE_LIST':
-      return [{ type: 'text', text: '🛒 採購清單功能即將開放（Phase 5）' }];
+      return handleQueryPurchaseList();
 
     case 'CONFIRM_YES':
     case 'CONFIRM_NO':

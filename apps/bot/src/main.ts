@@ -7,8 +7,14 @@ import { closeRedis } from './lib/redis.js';
 import { lineSignatureMiddleware } from './middleware/line-signature.js';
 import { NluService } from './services/nlu/nlu.service.js';
 import { createWebhookRouter } from './routes/webhook.js';
+import { scheduleWeeklyPurchaseReminder } from './cron/weekly-purchase.cron.js';
 
 const app = express();
+
+// ── LINE client (shared across webhook + cron) ─────────────
+const lineClient = new messagingApi.MessagingApiClient({
+  channelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
+});
 
 // ── Health check (no auth required) ───────────────────────
 app.get('/health', (_req, res) => {
@@ -34,12 +40,7 @@ app.post(
     }
   },
   // 4. Webhook router
-  createWebhookRouter(
-    new messagingApi.MessagingApiClient({
-      channelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
-    }),
-    new NluService(env.ANTHROPIC_API_KEY),
-  ),
+  createWebhookRouter(lineClient, new NluService(env.ANTHROPIC_API_KEY)),
 );
 
 // ── Global JSON parser for all other routes ────────────────
@@ -50,6 +51,9 @@ const server = createServer(app);
 
 server.listen(env.PORT, () => {
   logger.info({ port: env.PORT, nodeEnv: env.NODE_ENV }, 'Bot server started');
+
+  // Start cron jobs after server is up
+  scheduleWeeklyPurchaseReminder(lineClient, env.LINE_GROUP_ID);
 });
 
 // ── Graceful shutdown ──────────────────────────────────────
@@ -58,7 +62,6 @@ async function shutdown(signal: string): Promise<void> {
   server.close(async () => {
     await closeRedis();
     logger.info('Server closed');
-    // Set exit code and let the event loop drain naturally
     process.exitCode = 0;
   });
 }

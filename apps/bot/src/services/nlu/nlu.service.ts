@@ -1,0 +1,99 @@
+import Anthropic from '@anthropic-ai/sdk';
+import { logger } from '../../lib/logger.js';
+import { NluResultSchema, type NluResult } from './schema.js';
+
+const SYSTEM_PROMPT = `你是「居家生活小幫手」LINE Bot 的自然語言理解模組。
+你的任務是解析使用者傳入的訊息，辨識意圖並萃取結構化實體資料。
+
+## 意圖分類
+
+| 意圖 | 說明 | 範例 |
+|------|------|------|
+| QUERY_INVENTORY | 查詢庫存 | 「白米還有多少」、「查一下調味料的存量」 |
+| RECORD_CONSUMPTION | 記錄消耗 | 「今天煮飯用了白米 2 杯」、「用掉橄欖油半瓶」 |
+| RESTOCK | 補充庫存 | 「今天買了青菜 3 包」、「剛買了沙拉油 2 瓶，到期 2026/12」 |
+| QUERY_PURCHASE_LIST | 查詢採購清單 | 「我這週要買什麼」、「採購清單給我看」 |
+| START_ONBOARDING | 開始初始建檔 | 「開始盤點」、「重新整理庫存」 |
+| RESET_ITEM | 重置單品庫存 | 「醬油重新盤點為 3 瓶」、「白米現在有 5kg」 |
+| CONFIRM_YES | 確認/肯定 | 「確認」、「是的」、「OK」、「對」 |
+| CONFIRM_NO | 取消/否定 | 「取消」、「不是」、「不對」 |
+| SET_CONFIG | 設定偏好 | 「每週五早上 9 點提醒採購」 |
+| UNKNOWN | 無法辨識 | 任何其他訊息 |
+
+## 實體萃取規則
+
+- items[].name: 物品名稱，如「白米」、「橄欖油」
+- items[].quantity: 數字（float），如 2、0.5
+- items[].unit: 單位，如「杯」、「瓶」、「包」、「kg」
+- items[].expiryDate: 到期日，轉為 ISO 日期字串（YYYY-MM-DD），如「2026/12」→「2026-12-01」
+- items[].expiryDays: 使用者以「N天」表示的有效天數
+- category: 品類名稱，如「調味料」、「食材」
+- targetDate: 查詢的目標日期
+
+## 輸出格式
+
+嚴格輸出 JSON，不要加任何說明文字。格式如下：
+{
+  "intent": "<INTENT>",
+  "entities": {
+    "items": [...] | undefined,
+    "category": "<string>" | undefined,
+    "targetDate": "<ISO date>" | undefined
+  },
+  "rawText": "<原始輸入>",
+  "confidence": <0.0-1.0>
+}`;
+
+export class NluService {
+  private client: Anthropic;
+
+  constructor(apiKey: string) {
+    this.client = new Anthropic({ apiKey });
+  }
+
+  async parse(text: string): Promise<NluResult> {
+    const response = await this.client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 512,
+      system: [
+        {
+          type: 'text',
+          text: SYSTEM_PROMPT,
+          // Enable prompt caching — the system prompt is static and large
+          cache_control: { type: 'ephemeral' },
+        },
+      ],
+      messages: [{ role: 'user', content: text }],
+    });
+
+    const block = response.content[0];
+    if (!block || block.type !== 'text') {
+      logger.warn({ text }, 'NLU: unexpected response format');
+      return this.unknownResult(text);
+    }
+
+    const raw = block.text.trim();
+
+    // Strip markdown code fences if present
+    const jsonText = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+
+    try {
+      const parsed = JSON.parse(jsonText) as unknown;
+      const result = NluResultSchema.parse(parsed);
+      logger.debug({ intent: result.intent, confidence: result.confidence }, 'NLU parsed');
+      return result;
+    } catch (err) {
+      logger.warn({ err, raw }, 'NLU: failed to parse response');
+      return this.unknownResult(text);
+    }
+  }
+
+  private unknownResult(text: string): NluResult {
+    return {
+      intent: 'UNKNOWN',
+      entities: {},
+      rawText: text,
+      confidence: 0,
+    };
+  }
+}

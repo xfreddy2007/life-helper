@@ -1,6 +1,9 @@
 {
-  "extends": "@life-helper/typescript-config/node.json",
+  "extends": "@life-helper/typescript-config/base.json",
   "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist",
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]

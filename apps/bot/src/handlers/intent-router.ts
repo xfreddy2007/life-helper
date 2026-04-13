@@ -5,6 +5,10 @@ import { handleQueryInventory } from './query-inventory.handler.js';
 import { handleRestock } from './restock.handler.js';
 import { handleResetItem } from './reset-item.handler.js';
 import { handleStartOnboarding, handleOnboardingStep } from './onboarding.handler.js';
+import {
+  handleRecordConsumption,
+  handleAnomalyConfirmation,
+} from './record-consumption.handler.js';
 import { logger } from '../lib/logger.js';
 
 export interface RouterContext {
@@ -28,6 +32,18 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
     return handleOnboardingStep(nluResult, session, sourceId);
   }
 
+  // Anomaly confirmation flow (RESTOCK_CONFIRM reused for consumption confirm)
+  if (session?.flow === 'RESTOCK_CONFIRM') {
+    if (nluResult.intent === 'CONFIRM_YES') {
+      const result = await handleAnomalyConfirmation(true, sourceId);
+      if (result) return result;
+    }
+    if (nluResult.intent === 'CONFIRM_NO') {
+      const result = await handleAnomalyConfirmation(false, sourceId);
+      if (result) return result;
+    }
+  }
+
   // ── Top-level intent dispatch ────────────────────────────
   switch (nluResult.intent) {
     case 'QUERY_INVENTORY':
@@ -43,7 +59,7 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
       return handleStartOnboarding(sourceId);
 
     case 'RECORD_CONSUMPTION':
-      return [{ type: 'text', text: '📝 消耗記錄功能即將開放（Phase 4）' }];
+      return handleRecordConsumption(nluResult, sourceId);
 
     case 'QUERY_PURCHASE_LIST':
       return [{ type: 'text', text: '🛒 採購清單功能即將開放（Phase 5）' }];

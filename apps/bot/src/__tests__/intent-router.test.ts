@@ -3,7 +3,14 @@ import { routeIntent } from '../handlers/intent-router.js';
 import type { RouterContext } from '../handlers/intent-router.js';
 import type { WebhookEvent } from '@line/bot-sdk';
 
-// Mock all repository calls so this test stays unit-level
+// Mock database to keep tests unit-level
+vi.mock('@life-helper/database', () => ({
+  prisma: {
+    item: { update: vi.fn().mockResolvedValue({}) },
+    $transaction: vi.fn().mockResolvedValue(undefined),
+  },
+}));
+
 vi.mock('@life-helper/database/repositories', () => ({
   listItems: vi.fn().mockResolvedValue([]),
   findItemByName: vi.fn().mockResolvedValue(null),
@@ -12,6 +19,7 @@ vi.mock('@life-helper/database/repositories', () => ({
   resetQuantity: vi.fn(),
   findCategoryByName: vi.fn().mockResolvedValue(null),
   getDefaultCategory: vi.fn().mockResolvedValue({ id: 'cat-1', name: '食材' }),
+  getRecentConsumptionLogs: vi.fn().mockResolvedValue([]),
   listCategories: vi
     .fn()
     .mockResolvedValue([{ id: 'cat-1', name: '食材', isDefault: true, defaultExpiryAlertDays: 3 }]),
@@ -82,12 +90,12 @@ describe('routeIntent', () => {
     expect(replies[0]?.text).toContain('重置的物品');
   });
 
-  it('RECORD_CONSUMPTION returns phase 4 placeholder', async () => {
+  it('RECORD_CONSUMPTION with no entities returns prompt', async () => {
     const ctx = makeCtx({
       nluResult: { intent: 'RECORD_CONSUMPTION', entities: {}, rawText: '消耗', confidence: 0.9 },
     });
     const replies = await routeIntent(ctx);
-    expect(replies[0]?.text).toContain('Phase 4');
+    expect(replies[0]?.text).toContain('消耗了什麼');
   });
 
   it('UNKNOWN returns help text', async () => {

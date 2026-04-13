@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import categories from './default-categories.json' assert { type: 'json' };
+import categories from './default-categories.json' with { type: 'json' };
 
 const prisma = new PrismaClient();
 

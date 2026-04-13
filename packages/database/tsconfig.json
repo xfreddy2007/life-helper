@@ -1,5 +1,10 @@
 {
-  "extends": "@life-helper/typescript-config/node.json",
+  "extends": "@life-helper/typescript-config/base.json",
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist"
+  },
   "include": ["db/**/*", "prisma/**/*", "repositories/**/*"],
   "exclude": ["node_modules", "dist"]
 }

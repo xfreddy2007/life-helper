@@ -6,6 +6,7 @@ import { logger } from './lib/logger.js';
 import { closeRedis } from './lib/redis.js';
 import { lineSignatureMiddleware } from './middleware/line-signature.js';
 import { NluService } from './services/nlu/nlu.service.js';
+import { VisionService } from './services/vision.service.js';
 import { createWebhookRouter } from './routes/webhook.js';
 import { scheduleWeeklyPurchaseReminder } from './cron/weekly-purchase.cron.js';
 import { scheduleDailyConfirmCrons } from './cron/daily-confirm.cron.js';
@@ -13,8 +14,13 @@ import { scheduleExpiryAlertCron } from './cron/expiry-alert.cron.js';
 
 const app = express();
 
-// ── LINE client (shared across webhook + cron) ─────────────
+// ── LINE clients (shared across webhook + cron) ────────────
 const lineClient = new messagingApi.MessagingApiClient({
+  channelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
+});
+
+// Blob client is the separate client for downloading message content (images etc.)
+const lineBlobClient = new messagingApi.MessagingApiBlobClient({
   channelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
 });
 
@@ -42,7 +48,12 @@ app.post(
     }
   },
   // 4. Webhook router
-  createWebhookRouter(lineClient, new NluService(env.ANTHROPIC_API_KEY)),
+  createWebhookRouter(
+    lineClient,
+    lineBlobClient,
+    new NluService(env.ANTHROPIC_API_KEY),
+    new VisionService(env.ANTHROPIC_API_KEY),
+  ),
 );
 
 // ── Global JSON parser for all other routes ────────────────

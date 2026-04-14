@@ -10,6 +10,7 @@ import {
   handleAnomalyConfirmation,
 } from './record-consumption.handler.js';
 import { handleQueryPurchaseList } from './query-purchase-list.handler.js';
+import { handleReceiptConfirmation } from './receipt-import.handler.js';
 import { logger } from '../lib/logger.js';
 
 export interface RouterContext {
@@ -31,6 +32,18 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
   // ── Active multi-step flows ──────────────────────────────
   if (session?.flow === 'ONBOARDING') {
     return handleOnboardingStep(nluResult, session, sourceId);
+  }
+
+  // Receipt import confirmation flow
+  if (session?.flow === 'RECEIPT_IMPORT') {
+    if (nluResult.intent === 'CONFIRM_YES') {
+      const result = await handleReceiptConfirmation(true, sourceId);
+      if (result) return result;
+    }
+    if (nluResult.intent === 'CONFIRM_NO') {
+      const result = await handleReceiptConfirmation(false, sourceId);
+      if (result) return result;
+    }
   }
 
   // Anomaly confirmation flow (RESTOCK_CONFIRM reused for consumption confirm)

@@ -1,7 +1,11 @@
-import * as Sentry from '@sentry/node';
+// instrument.ts must be the very first import so Sentry can patch express/http
+// before they are loaded by any other module.
+import './instrument.js';
+
 import express from 'express';
 import { createServer } from 'http';
 import { messagingApi } from '@line/bot-sdk';
+import * as Sentry from '@sentry/node';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { closeRedis } from './lib/redis.js';
@@ -12,16 +16,6 @@ import { createWebhookRouter } from './routes/webhook.js';
 import { scheduleWeeklyPurchaseReminder } from './cron/weekly-purchase.cron.js';
 import { scheduleDailyConfirmCrons } from './cron/daily-confirm.cron.js';
 import { scheduleExpiryAlertCron } from './cron/expiry-alert.cron.js';
-
-// ── Sentry — must initialise before any other imports use it ──
-if (env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: env.SENTRY_DSN,
-    environment: env.NODE_ENV,
-    tracesSampleRate: env.NODE_ENV === 'production' ? 0.1 : 0,
-  });
-  logger.info('Sentry initialised');
-}
 
 const app = express();
 

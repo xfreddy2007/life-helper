@@ -1,0 +1,30 @@
+app = "life-helper-bot"
+primary_region = "sin"
+
+[build]
+
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
+
+# Run `prisma migrate deploy` before each new version goes live.
+# Fly executes this in a temporary machine with full image access before
+# routing traffic to the updated app machines.
+[deploy]
+  release_command = "node node_modules/.bin/prisma migrate deploy --schema packages/database/prisma/schema.prisma"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [http_service.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

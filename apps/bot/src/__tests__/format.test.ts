@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { formatDate, formatBatches, formatInventoryList } from '../lib/format.js';
+import {
+  formatDate,
+  formatBatches,
+  formatInventoryList,
+  formatPurchaseList,
+} from '../lib/format.js';
 import type { ExpiryBatch } from '@life-helper/database';
+import type { PurchaseRecommendation } from '../services/purchase-advisor.service.js';
 
 function makeBatch(overrides: Partial<ExpiryBatch> = {}): ExpiryBatch {
   return {
@@ -109,5 +115,53 @@ describe('formatInventoryList', () => {
     ];
     const result = formatInventoryList(items);
     expect(result).toContain('共 1 項');
+  });
+});
+
+describe('formatPurchaseList', () => {
+  const makeRec = (
+    urgency: PurchaseRecommendation['urgency'],
+    name = '白米',
+  ): PurchaseRecommendation => ({
+    itemId: 'item-1',
+    itemName: name,
+    unit: 'kg',
+    suggestedQty: 2,
+    urgency,
+    reason: '測試原因',
+  });
+
+  it('returns no-purchase message for empty list', () => {
+    expect(formatPurchaseList([])).toContain('庫存充足');
+  });
+
+  it('shows URGENT items in 急需購買 section', () => {
+    const result = formatPurchaseList([makeRec('URGENT')]);
+    expect(result).toContain('急需購買');
+    expect(result).toContain('白米');
+  });
+
+  it('shows SUGGESTED items in 建議補貨 section', () => {
+    const result = formatPurchaseList([makeRec('SUGGESTED')]);
+    expect(result).toContain('建議補貨');
+  });
+
+  it('shows EXPIRY items in 即將過期 section', () => {
+    const result = formatPurchaseList([makeRec('EXPIRY')]);
+    expect(result).toContain('即將過期');
+  });
+
+  it('includes all three sections when all urgency levels present', () => {
+    const recs = [makeRec('URGENT'), makeRec('SUGGESTED', '醬油'), makeRec('EXPIRY', '牛奶')];
+    const result = formatPurchaseList(recs);
+    expect(result).toContain('急需購買');
+    expect(result).toContain('建議補貨');
+    expect(result).toContain('即將過期');
+  });
+
+  it('includes the generated date in the header', () => {
+    const date = new Date('2026-04-15T10:00:00+08:00');
+    const result = formatPurchaseList([makeRec('URGENT')], date);
+    expect(result).toContain('2026');
   });
 });

@@ -1,0 +1,38 @@
+# Dependencies (reinstalled during build)
+node_modules/
+**/node_modules/
+
+# Build outputs (rebuilt during Docker build)
+dist/
+build/
+.turbo/
+
+# Environment variables — never bake into the image
+.env
+.env.*
+!.env.example
+
+# Local database data
+db-data/
+
+# Test artifacts
+coverage/
+.nyc_output/
+
+# Git history
+.git/
+.gitignore
+
+# Development tooling
+.husky/
+
+# Logs
+*.log
+
+# OS artefacts
+.DS_Store
+Thumbs.db
+
+# Editor configs
+.vscode/
+.idea/

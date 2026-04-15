@@ -13,29 +13,32 @@
 Life Helper is a family-oriented LINE Bot that manages household supplies. Members of a shared LINE group can interact with the bot using natural language to:
 
 - Query current inventory levels by item or category
-- Record consumption after cooking or daily use
-- Add new stock after shopping trips (via text or receipt photo)
-- Receive weekly purchase reminders and expiry date alerts
+- Record consumption after cooking or daily use (with anomaly detection)
+- Add new stock after shopping trips (via text or receipt photo scan with Claude Vision)
+- Receive weekly purchase reminders and daily consumption confirmation push
 - Track batch expiry dates with first-in-first-out (FIFO) deduction
+- Automatic expiry alerts at 08:00 daily for items approaching or past their expiry date
+- Receipt name mapping: remembers how receipt product names map to your inventory items
 
 ---
 
 ## Tech Stack
 
-| Layer            | Technology                                                                                    |
-| ---------------- | --------------------------------------------------------------------------------------------- |
-| Monorepo         | [Turborepo](https://turbo.build) + npm workspaces                                             |
-| Bot Interface    | [LINE Messaging API](https://developers.line.biz/en/docs/messaging-api/) (`@line/bot-sdk` v9) |
-| Backend API      | [Express](https://expressjs.com) v4 + [ts-rest](https://ts-rest.com)                          |
-| AI / NLU         | [Anthropic Claude API](https://docs.anthropic.com) (`claude-sonnet-4-6`) with Prompt Caching  |
-| Database         | PostgreSQL 16 (local: Docker; production: Fly Managed Postgres)                               |
-| Cache / Sessions | Redis 7 (local: Docker; production: [Upstash](https://upstash.com))                           |
-| ORM              | [Prisma](https://www.prisma.io) v6                                                            |
-| Language         | TypeScript 5.8 (strict mode)                                                                  |
-| Testing          | [Vitest](https://vitest.dev) + [Supertest](https://github.com/ladjs/supertest)                |
-| Deployment       | [Fly.io](https://fly.io) (Singapore region)                                                   |
-| Linting          | ESLint 9 (flat config) + Prettier                                                             |
-| Versioning       | [Changesets](https://github.com/changesets/changesets)                                        |
+| Layer            | Technology                                                                                                  |
+| ---------------- | ----------------------------------------------------------------------------------------------------------- |
+| Monorepo         | [Turborepo](https://turbo.build) + npm workspaces                                                           |
+| Bot Interface    | [LINE Messaging API](https://developers.line.biz/en/docs/messaging-api/) (`@line/bot-sdk` v9)               |
+| Backend API      | [Express](https://expressjs.com) v4 + [ts-rest](https://ts-rest.com)                                        |
+| AI / NLU         | [Anthropic Claude API](https://docs.anthropic.com) (`claude-sonnet-4-6`) with Prompt Caching                |
+| Database         | PostgreSQL 16 (local: Docker; production: Fly Managed Postgres)                                             |
+| Cache / Sessions | Redis 7 (local: Docker; production: [Upstash](https://upstash.com))                                         |
+| ORM              | [Prisma](https://www.prisma.io) v6                                                                          |
+| Language         | TypeScript 5.8 (strict mode)                                                                                |
+| Testing          | [Vitest](https://vitest.dev) v3 + [@vitest/coverage-v8](https://vitest.dev/guide/coverage) (≥80% threshold) |
+| Error Tracking   | [Sentry](https://sentry.io) (`@sentry/node` v8) with Express error handler                                  |
+| Deployment       | [Fly.io](https://fly.io) (Singapore region)                                                                 |
+| Linting          | ESLint 9 (flat config) + Prettier                                                                           |
+| Versioning       | [Changesets](https://github.com/changesets/changesets)                                                      |
 
 ---
 
@@ -273,6 +276,33 @@ npm run version-packages
 | Bug fix         | `patch` | `0.1.0 → 0.1.1` |
 | New feature     | `minor` | `0.1.1 → 0.2.0` |
 | Breaking change | `major` | `0.2.0 → 1.0.0` |
+
+---
+
+## Testing
+
+Run the full test suite:
+
+```bash
+npm run test
+```
+
+Run with coverage report:
+
+```bash
+npm run test:coverage --workspace=apps/bot
+```
+
+Coverage thresholds (enforced in CI):
+
+| Metric     | Threshold |
+| ---------- | --------- |
+| Lines      | ≥ 80%     |
+| Functions  | ≥ 80%     |
+| Branches   | ≥ 75%     |
+| Statements | ≥ 80%     |
+
+Infrastructure files (cron jobs, Express wiring, config, Redis client) are excluded from coverage — they are integration-tested via the full server boot rather than unit tests.
 
 ---
 

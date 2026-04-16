@@ -37,6 +37,8 @@ app.get('/health', (_req, res) => {
 // ── LINE Webhook ───────────────────────────────────────────
 // LINE sends JSON but signature validation requires the raw body.
 // Strategy: capture raw body for /webhook, then parse to JSON.
+// Note: middlewares registered via app.post(); router mounted via app.use()
+// so that Express strips the '/webhook' prefix and router.post('/') matches.
 app.post(
   '/webhook',
   // 1. Buffer the raw body for signature validation
@@ -52,7 +54,12 @@ app.post(
       next(err);
     }
   },
-  // 4. Webhook router
+);
+
+// 4. Mount the webhook router via app.use so Express strips '/webhook'
+//    and router.post('/') inside the router matches correctly.
+app.use(
+  '/webhook',
   createWebhookRouter(
     lineClient,
     lineBlobClient,

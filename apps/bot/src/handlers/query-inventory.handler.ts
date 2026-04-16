@@ -33,7 +33,7 @@ export async function handleQueryInventory(nlu: NluResult): Promise<ReplyMessage
   }
 
   // Category or full list query
-  const items = await listItems(categoryName);
+  const items = await listItems(categoryName ?? undefined);
   const title = categoryName ? `📦 目前庫存（${categoryName}）` : '📦 目前庫存（全部）';
 
   return [{ type: 'text', text: formatInventoryList(items, title) }];

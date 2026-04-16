@@ -22,15 +22,15 @@ export const NluResultSchema = z.object({
       .array(
         z.object({
           name: z.string(),
-          quantity: z.number().optional(),
-          unit: z.string().optional(),
-          expiryDate: z.string().optional(), // ISO date string
-          expiryDays: z.number().optional(), // e.g. "3天" → 3
+          quantity: z.number().nullish(),
+          unit: z.string().nullish(),
+          expiryDate: z.string().nullish(), // ISO date string
+          expiryDays: z.number().nullish(), // e.g. "3天" → 3
         }),
       )
-      .optional(),
-    category: z.string().optional(),
-    targetDate: z.string().optional(),
+      .nullish(),
+    category: z.string().nullish(),
+    targetDate: z.string().nullish(),
   }),
   rawText: z.string(),
   confidence: z.number().min(0).max(1),

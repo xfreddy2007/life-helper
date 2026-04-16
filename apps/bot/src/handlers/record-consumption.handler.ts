@@ -2,6 +2,7 @@ import { prisma } from '@life-helper/database';
 import type { ExpiryBatch } from '@life-helper/database';
 import { findItemByName, getRecentConsumptionLogs } from '@life-helper/database/repositories';
 import { planFifoDeduction } from '../services/fifo.service.js';
+import { convertUnit } from '../lib/unit-convert.js';
 import {
   detectAnomalousConsumption,
   calculateWeeklyConsumptionRate,
@@ -37,6 +38,7 @@ export async function handleRecordConsumption(
   }
 
   const results: string[] = [];
+  let anyConsumed = false;
 
   for (const entity of itemEntities) {
     const { name, quantity, unit, expiryDate } = entity;
@@ -46,9 +48,28 @@ export async function handleRecordConsumption(
       continue;
     }
 
+    if (quantity <= 0) {
+      results.push(
+        `❓ 「${name}」消耗數量必須大於 0，您輸入了 ${quantity}${unit}，請確認是否正確。`,
+      );
+      continue;
+    }
+
     const item = await findItemByName(name);
     if (!item) {
       results.push(`找不到「${name}」，請先建立庫存記錄`);
+      continue;
+    }
+
+    // Check if consumption exceeds available stock (after unit conversion)
+    const itemUnit = item.units[0] ?? unit;
+    const convertedQty = convertUnit(quantity, unit, itemUnit) ?? quantity;
+    if (convertedQty > item.totalQuantity) {
+      const available = `${+item.totalQuantity.toFixed(2)}${itemUnit}`;
+      const requested = `${quantity}${unit}`;
+      results.push(
+        `❓ 「${name}」目前庫存只有 ${available}，但您輸入消耗 ${requested}，請確認數量是否正確。`,
+      );
       continue;
     }
 
@@ -63,7 +84,7 @@ export async function handleRecordConsumption(
         itemName: name,
         quantity,
         unit,
-        expiryDate: expiryDate,
+        expiryDate: expiryDate ?? undefined,
       };
       const session = newSession('RESTOCK_CONFIRM');
       session.data = { pendingConsumption: pending };
@@ -84,9 +105,11 @@ export async function handleRecordConsumption(
       quantity,
       unit,
       item.expiryBatches,
+      itemUnit,
       expiryDate ? new Date(expiryDate) : undefined,
     );
     results.push(line);
+    anyConsumed = true;
 
     // Update consumption rate
     const allLogs = await getRecentConsumptionLogs(item.id, 30);
@@ -101,12 +124,8 @@ export async function handleRecordConsumption(
 
   if (results.length === 0) return [{ type: 'text', text: '沒有可以記錄的消耗資訊。' }];
 
-  return [
-    {
-      type: 'text',
-      text: `📝 消耗記錄完成！\n─────────────────\n${results.join('\n')}`,
-    },
-  ];
+  const header = anyConsumed ? '📝 消耗記錄完成！\n─────────────────\n' : '';
+  return [{ type: 'text', text: `${header}${results.join('\n')}` }];
 }
 
 /**
@@ -140,6 +159,7 @@ export async function handleAnomalyConfirmation(
     pending.quantity,
     pending.unit,
     item.expiryBatches,
+    item.units[0] ?? pending.unit,
     pending.expiryDate ? new Date(pending.expiryDate) : undefined,
   );
 
@@ -154,9 +174,14 @@ async function executeConsumption(
   quantity: number,
   unit: string,
   batches: ExpiryBatch[],
+  itemUnit: string,
   preferredExpiry?: Date,
 ): Promise<string> {
-  const deduction = planFifoDeduction(batches, quantity, preferredExpiry);
+  // Convert consumption quantity to item's storage unit if units differ
+  const converted = convertUnit(quantity, unit, itemUnit);
+  const deductQty = converted ?? quantity;
+
+  const deduction = planFifoDeduction(batches, deductQty, preferredExpiry);
 
   // Apply batch deductions and insert log atomically
   await prisma.$transaction(async (tx) => {
@@ -177,12 +202,21 @@ async function executeConsumption(
     });
 
     await tx.consumptionLog.create({
-      data: { itemId, quantity: deduction.totalDeducted, unit },
+      data: { itemId, quantity: deduction.totalDeducted, unit: itemUnit },
     });
   });
 
   if (deduction.shortfall > 0) {
-    return `⚠️ ${itemName} -${deduction.totalDeducted}${unit}（庫存不足，差 ${deduction.shortfall}${unit}，已清零）`;
+    // Convert shortfall back to the user's original unit for a readable message
+    const shortfallInUserUnit =
+      converted !== null
+        ? (convertUnit(deduction.shortfall, itemUnit, unit) ?? deduction.shortfall)
+        : deduction.shortfall;
+    const deductedInUserUnit =
+      converted !== null
+        ? (convertUnit(deduction.totalDeducted, itemUnit, unit) ?? deduction.totalDeducted)
+        : deduction.totalDeducted;
+    return `⚠️ ${itemName} -${+deductedInUserUnit.toFixed(2)}${unit}（庫存不足，差 ${+shortfallInUserUnit.toFixed(2)}${unit}，已清零）`;
   }
   return `✅ ${itemName} -${quantity}${unit}`;
 }

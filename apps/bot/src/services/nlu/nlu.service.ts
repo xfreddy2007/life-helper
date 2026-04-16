@@ -23,7 +23,7 @@ const SYSTEM_PROMPT = `你是「居家生活小幫手」LINE Bot 的自然語言
 ## 實體萃取規則
 
 - items[].name: 物品名稱，如「白米」、「橄欖油」
-- items[].quantity: 數字（float），如 2、0.5
+- items[].quantity: 數字（float），如 2、0.5；若使用者輸入負數（如 -10），原樣保留負號，不可轉為正數
 - items[].unit: 單位，如「杯」、「瓶」、「包」、「kg」
 - items[].expiryDate: 到期日，轉為 ISO 日期字串（YYYY-MM-DD），如「2026/12」→「2026-12-01」
 - items[].expiryDays: 使用者以「N天」表示的有效天數
@@ -36,9 +36,9 @@ const SYSTEM_PROMPT = `你是「居家生活小幫手」LINE Bot 的自然語言
 {
   "intent": "<INTENT>",
   "entities": {
-    "items": [...] | undefined,
-    "category": "<string>" | undefined,
-    "targetDate": "<ISO date>" | undefined
+    "items": [...] | null,
+    "category": "<string>" | null,
+    "targetDate": "<ISO date>" | null
   },
   "rawText": "<原始輸入>",
   "confidence": <0.0-1.0>
@@ -74,8 +74,11 @@ export class NluService {
 
     const raw = block.text.trim();
 
-    // Strip markdown code fences if present
-    const jsonText = raw.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '');
+    // Strip markdown code fences if present, then replace JS `undefined` with JSON `null`
+    const jsonText = raw
+      .replace(/^```(?:json)?\n?/, '')
+      .replace(/\n?```$/, '')
+      .replace(/:\s*undefined/g, ': null');
 
     try {
       const parsed = JSON.parse(jsonText) as unknown;

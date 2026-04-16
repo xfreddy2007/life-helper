@@ -10,6 +10,11 @@ type BatchForAlert = {
   item: { name: string };
 };
 
+/** Round to at most 2 decimal places, removing trailing zeros. */
+function fmtQty(n: number): string {
+  return +n.toFixed(2) + '';
+}
+
 /**
  * Format a date as YYYY/MM/DD (Taiwan locale).
  */
@@ -32,7 +37,7 @@ export function formatBatches(batches: ExpiryBatch[]): string {
   return batches
     .map((b) => {
       const exp = b.expiryDate ? ` (${formatDate(b.expiryDate)})` : '';
-      return `${b.quantity}${b.unit}${exp}`;
+      return `${fmtQty(b.quantity)}${b.unit}${exp}`;
     })
     .join('、');
 }
@@ -68,7 +73,7 @@ export function formatInventoryList(
     lines.push(`【${cat}】`);
     for (const item of catItems) {
       const unit = item.units[0] ?? '';
-      const qty = `${item.totalQuantity}${unit}`;
+      const qty = `${fmtQty(item.totalQuantity)}${unit}`;
       const batches =
         item.expiryBatches.length > 0 ? `（${formatBatches(item.expiryBatches)}）` : '';
       lines.push(`  ${item.name}：${qty} ${batches}`.trimEnd());

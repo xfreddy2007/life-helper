@@ -12,16 +12,27 @@ import { formatDate } from '../lib/format.js';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ReplyMessage } from './intent-router.js';
 
-// ── Anomaly confirmation flow ────────────────────────────────
-// Stored in session.data while waiting for user to confirm/reject
+// ── Types ────────────────────────────────────────────────────
 
 interface PendingConsumption {
   itemId: string;
   itemName: string;
   quantity: number;
   unit: string;
-  expiryDate?: string; // ISO string
+  expiryDate?: string; // ISO string — present for anomaly confirm, absent for mismatch
 }
+
+// A mismatch item queued for sequential confirmation
+interface PendingMismatch {
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  unit: string;
+  specifiedDate: string; // formatted, for the confirmation prompt
+  batchLines: string; // formatted batch list, for the confirmation prompt
+}
+
+// ── Public handlers ──────────────────────────────────────────
 
 export async function handleRecordConsumption(
   nlu: NluResult,
@@ -40,6 +51,7 @@ export async function handleRecordConsumption(
 
   const results: string[] = [];
   let anyConsumed = false;
+  const pendingMismatches: PendingMismatch[] = [];
 
   for (const entity of itemEntities) {
     const { name, quantity, unit, expiryDate } = entity;
@@ -80,7 +92,8 @@ export async function handleRecordConsumption(
       continue;
     }
 
-    // Expiry-batch mismatch check: user specified a date that doesn't exist in stock
+    // Expiry-batch mismatch: user specified a date that doesn't exist in stock.
+    // Don't execute immediately — collect for sequential confirmation after the loop.
     if (expiryDate) {
       const target = new Date(expiryDate);
       target.setHours(0, 0, 0, 0);
@@ -97,16 +110,15 @@ export async function handleRecordConsumption(
               `  ${+b.quantity.toFixed(2)}${b.unit}${b.expiryDate ? `（到期：${formatDate(b.expiryDate)}）` : ''}`,
           )
           .join('\n');
-        const pending: PendingConsumption = { itemId: item.id, itemName: name, quantity, unit };
-        const sess = newSession('RESTOCK_CONFIRM');
-        sess.data = { pendingConsumption: pending };
-        await setSession(sourceId, sess);
-        return [
-          {
-            type: 'text',
-            text: `⚠️ 「${name}」沒有到期日為 ${formatDate(target)} 的庫存批次。\n\n目前批次：\n${batchLines}\n\n是否要消耗 ${quantity}${unit} 的現有庫存（依先進先出順序）？\n• 傳「確認」繼續\n• 傳「取消」放棄`,
-          },
-        ];
+        pendingMismatches.push({
+          itemId: item.id,
+          itemName: name,
+          quantity,
+          unit,
+          specifiedDate: formatDate(target),
+          batchLines,
+        });
+        continue;
       }
     }
 
@@ -159,6 +171,34 @@ export async function handleRecordConsumption(
     }
   }
 
+  // Ask confirmation for mismatched items, one at a time.
+  // Already-executed results are shown as a prefix, then carried in session.
+  if (pendingMismatches.length > 0) {
+    const first = pendingMismatches[0]!;
+    const queue = pendingMismatches.slice(1);
+
+    const sess = newSession('RESTOCK_CONFIRM');
+    sess.data = {
+      pendingConsumption: {
+        itemId: first.itemId,
+        itemName: first.itemName,
+        quantity: first.quantity,
+        unit: first.unit,
+      },
+      mismatchQueue: queue,
+      completedLines: results,
+    };
+    await setSession(sourceId, sess);
+
+    const prefix = results.length > 0 ? `${results.join('\n')}\n\n` : '';
+    return [
+      {
+        type: 'text',
+        text: `${prefix}⚠️ 「${first.itemName}」沒有到期日為 ${first.specifiedDate} 的庫存批次。\n\n目前批次：\n${first.batchLines}\n\n是否要消耗 ${first.quantity}${first.unit} 的現有庫存（依先進先出順序）？\n• 傳「確認」繼續\n• 傳「取消」放棄`,
+      },
+    ];
+  }
+
   if (results.length === 0) return [{ type: 'text', text: '沒有可以記錄的消耗資訊。' }];
 
   const header = anyConsumed ? '📝 消耗記錄完成！\n─────────────────\n' : '';
@@ -166,7 +206,7 @@ export async function handleRecordConsumption(
 }
 
 /**
- * Handles CONFIRM_YES / CONFIRM_NO when a pending anomaly confirmation is stored in session.
+ * Handles CONFIRM_YES / CONFIRM_NO for both anomaly and expiry-mismatch confirmations.
  */
 export async function handleAnomalyConfirmation(
   isConfirmed: boolean,
@@ -177,15 +217,28 @@ export async function handleAnomalyConfirmation(
     return null; // not our flow
   }
 
+  const pending = session.data['pendingConsumption'] as PendingConsumption;
+  const mismatchQueue = (session.data['mismatchQueue'] as PendingMismatch[] | undefined) ?? [];
+  const completedLines = (session.data['completedLines'] as string[] | undefined) ?? [];
+  const isMismatchFlow = 'mismatchQueue' in session.data;
+
   await clearSession(sourceId);
 
   if (!isConfirmed) {
-    return [{ type: 'text', text: '已取消，消耗未記錄。' }];
+    const cancelMsg = `已取消「${pending.itemName}」的消耗。`;
+    // For mismatch flow, also surface any already-executed results
+    if (isMismatchFlow && completedLines.length > 0) {
+      return [
+        {
+          type: 'text',
+          text: `📝 消耗記錄完成！\n─────────────────\n${completedLines.join('\n')}\n\n${cancelMsg}`,
+        },
+      ];
+    }
+    return [{ type: 'text', text: isMismatchFlow ? cancelMsg : '已取消，消耗未記錄。' }];
   }
 
-  const pending = session.data['pendingConsumption'] as PendingConsumption;
   const item = await findItemByName(pending.itemName);
-
   if (!item) {
     return [{ type: 'text', text: `找不到「${pending.itemName}」，無法記錄消耗。` }];
   }
@@ -200,6 +253,45 @@ export async function handleAnomalyConfirmation(
     pending.expiryDate ? new Date(pending.expiryDate) : undefined,
   );
 
+  const allLines = [...completedLines, line];
+
+  // More mismatches waiting — ask about the next one
+  if (mismatchQueue.length > 0) {
+    const next = mismatchQueue[0]!;
+    const remaining = mismatchQueue.slice(1);
+
+    const sess = newSession('RESTOCK_CONFIRM');
+    sess.data = {
+      pendingConsumption: {
+        itemId: next.itemId,
+        itemName: next.itemName,
+        quantity: next.quantity,
+        unit: next.unit,
+      },
+      mismatchQueue: remaining,
+      completedLines: allLines,
+    };
+    await setSession(sourceId, sess);
+
+    return [
+      {
+        type: 'text',
+        text: `✅ 已記錄「${pending.itemName}」\n\n⚠️ 「${next.itemName}」沒有到期日為 ${next.specifiedDate} 的庫存批次。\n\n目前批次：\n${next.batchLines}\n\n是否要消耗 ${next.quantity}${next.unit} 的現有庫存（依先進先出順序）？\n• 傳「確認」繼續\n• 傳「取消」放棄`,
+      },
+    ];
+  }
+
+  // All done
+  if (isMismatchFlow) {
+    return [
+      {
+        type: 'text',
+        text: `📝 消耗記錄完成！\n─────────────────\n${allLines.join('\n')}`,
+      },
+    ];
+  }
+
+  // Original anomaly confirm — single item, no queue
   return [{ type: 'text', text: `📝 已確認記錄\n${line}` }];
 }
 
@@ -244,7 +336,6 @@ async function executeConsumption(
   });
 
   if (deduction.shortfall > 0) {
-    // Convert shortfall back to the user's original unit for a readable message
     const shortfallInUserUnit =
       converted !== null
         ? (convertUnit(deduction.shortfall, itemUnit, unit) ?? deduction.shortfall)

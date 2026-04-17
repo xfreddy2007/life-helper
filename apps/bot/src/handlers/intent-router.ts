@@ -15,6 +15,7 @@ import {
 } from './record-consumption.handler.js';
 import { handleQueryPurchaseList } from './query-purchase-list.handler.js';
 import { handleReceiptConfirmation } from './receipt-import.handler.js';
+import { handleRestockExpiryResponse } from './restock.handler.js';
 import { clearSession } from '../services/session.js';
 import { logger } from '../lib/logger.js';
 
@@ -83,13 +84,18 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
     }
   }
 
+  // Restock expiry clarification flow
+  if (session?.flow === 'RESTOCK_EXPIRY') {
+    return handleRestockExpiryResponse(nluResult, session, sourceId);
+  }
+
   // ── Top-level intent dispatch ────────────────────────────
   switch (nluResult.intent) {
     case 'QUERY_INVENTORY':
       return handleQueryInventory(nluResult);
 
     case 'RESTOCK':
-      return handleRestock(nluResult);
+      return handleRestock(nluResult, sourceId);
 
     case 'RESET_ITEM':
       return handleResetItem(nluResult);

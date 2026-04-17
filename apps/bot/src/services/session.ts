@@ -4,7 +4,8 @@ export type ConversationFlow =
   | 'RECEIPT_IMPORT'
   | 'ONBOARDING'
   | 'RESTOCK_CONFIRM'
-  | 'RESET_CONFIRM';
+  | 'RESET_CONFIRM'
+  | 'RESTOCK_EXPIRY';
 
 export interface ConversationState {
   flow: ConversationFlow | null;

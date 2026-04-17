@@ -41,6 +41,12 @@ export async function findItemById(id: string): Promise<ItemWithBatchesAndCatego
   });
 }
 
+/** Returns the earliest non-null expiry date timestamp for a set of batches, or null if none. */
+function earliestExpiry(batches: { expiryDate: Date | null }[]): number | null {
+  const dates = batches.map((b) => b.expiryDate?.getTime() ?? null).filter((t) => t !== null);
+  return dates.length > 0 ? Math.min(...(dates as number[])) : null;
+}
+
 /**
  * List all items, optionally filtered by category name.
  */
@@ -50,10 +56,20 @@ export async function listItems(categoryName?: string): Promise<ItemWithBatchesA
     ...(categoryName ? { category: { name: { equals: categoryName, mode: 'insensitive' } } } : {}),
   };
 
-  return prisma.item.findMany({
+  const items = await prisma.item.findMany({
     where,
     include: { expiryBatches: { orderBy: { expiryDate: 'asc' } }, category: true },
-    orderBy: [{ category: { name: 'asc' } }, { name: 'asc' }],
+    orderBy: { name: 'asc' },
+  });
+
+  // Sort by earliest expiry date; items with no dated batches sort last
+  return items.sort((a, b) => {
+    const aMin = earliestExpiry(a.expiryBatches);
+    const bMin = earliestExpiry(b.expiryBatches);
+    if (aMin === null && bMin === null) return 0;
+    if (aMin === null) return 1;
+    if (bMin === null) return -1;
+    return aMin - bMin;
   });
 }
 

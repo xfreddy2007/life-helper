@@ -4,13 +4,18 @@ import type { ConversationState } from '../services/session.js';
 import { handleQueryInventory } from './query-inventory.handler.js';
 import { handleRestock } from './restock.handler.js';
 import { handleResetItem } from './reset-item.handler.js';
-import { handleStartOnboarding, handleOnboardingStep } from './onboarding.handler.js';
+import {
+  handleStartOnboarding,
+  handleOnboardingStep,
+  handleResetConfirmed,
+} from './onboarding.handler.js';
 import {
   handleRecordConsumption,
   handleAnomalyConfirmation,
 } from './record-consumption.handler.js';
 import { handleQueryPurchaseList } from './query-purchase-list.handler.js';
 import { handleReceiptConfirmation } from './receipt-import.handler.js';
+import { clearSession } from '../services/session.js';
 import { logger } from '../lib/logger.js';
 
 export interface RouterContext {
@@ -30,7 +35,27 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
   const { nluResult, session, sourceId } = ctx;
 
   // ── Active multi-step flows ──────────────────────────────
+  if (session?.flow === 'RESET_CONFIRM') {
+    if (nluResult.intent === 'CONFIRM_YES' || nluResult.rawText.trim() === '確認') {
+      return handleResetConfirmed(sourceId);
+    }
+    if (nluResult.intent === 'CONFIRM_NO' || nluResult.rawText.trim() === '取消') {
+      await clearSession(sourceId);
+      return [{ type: 'text', text: '已取消，庫存未變動。' }];
+    }
+    // Any other message re-prompts the confirmation
+    return [
+      {
+        type: 'text',
+        text: '請傳「確認」清除並重新盤點，或傳「取消」放棄。',
+      },
+    ];
+  }
+
   if (session?.flow === 'ONBOARDING') {
+    if (nluResult.intent === 'START_ONBOARDING' || nluResult.intent === 'QUERY_INVENTORY') {
+      return [{ type: 'text', text: '⏳ 盤點正在進行中，請繼續輸入物品，或傳「完成」結束盤點。' }];
+    }
     return handleOnboardingStep(nluResult, session, sourceId);
   }
 

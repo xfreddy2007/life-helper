@@ -45,9 +45,10 @@ export async function findItemById(id: string): Promise<ItemWithBatchesAndCatego
  * List all items, optionally filtered by category name.
  */
 export async function listItems(categoryName?: string): Promise<ItemWithBatchesAndCategory[]> {
-  const where: Prisma.ItemWhereInput = categoryName
-    ? { category: { name: { equals: categoryName, mode: 'insensitive' } } }
-    : {};
+  const where: Prisma.ItemWhereInput = {
+    totalQuantity: { gt: 0 },
+    ...(categoryName ? { category: { name: { equals: categoryName, mode: 'insensitive' } } } : {}),
+  };
 
   return prisma.item.findMany({
     where,
@@ -120,6 +121,18 @@ export async function resetQuantity(
       include: { expiryBatches: { orderBy: { expiryDate: 'asc' } }, category: true },
     });
   });
+}
+
+/**
+ * Clear all stock across every item:
+ * - Deletes all ExpiryBatch rows
+ * - Sets every item's totalQuantity back to 0
+ */
+export async function resetAllInventory(): Promise<void> {
+  await prisma.$transaction([
+    prisma.expiryBatch.deleteMany(),
+    prisma.item.updateMany({ data: { totalQuantity: 0 } }),
+  ]);
 }
 
 /**

@@ -1,6 +1,10 @@
 import { getRedis } from '../lib/redis.js';
 
-export type ConversationFlow = 'RECEIPT_IMPORT' | 'ONBOARDING' | 'RESTOCK_CONFIRM';
+export type ConversationFlow =
+  | 'RECEIPT_IMPORT'
+  | 'ONBOARDING'
+  | 'RESTOCK_CONFIRM'
+  | 'RESET_CONFIRM';
 
 export interface ConversationState {
   flow: ConversationFlow | null;

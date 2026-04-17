@@ -35,6 +35,12 @@ export async function handleRestock(nlu: NluResult): Promise<ReplyMessage[]> {
       continue;
     }
 
+    if (entity.unitMismatch) {
+      const hint = entity.suggestedUnit ? `（建議使用「${entity.suggestedUnit}」）` : '';
+      results.push(`⚠️ 「${name}」使用「${unit}」作為單位不太合理${hint}，請確認後重新輸入`);
+      continue;
+    }
+
     // Resolve expiry date
     let resolvedExpiry: Date | undefined;
     if (expiryDate) {

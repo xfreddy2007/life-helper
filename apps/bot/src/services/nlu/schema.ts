@@ -26,6 +26,8 @@ export const NluResultSchema = z.object({
           unit: z.string().nullish(),
           expiryDate: z.string().nullish(), // ISO date string
           expiryDays: z.number().nullish(), // e.g. "3天" → 3
+          unitMismatch: z.boolean().nullish(), // true when unit is semantically wrong for this item
+          suggestedUnit: z.string().nullish(), // reasonable unit when unitMismatch is true
         }),
       )
       .nullish(),

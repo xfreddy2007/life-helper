@@ -48,6 +48,12 @@ export async function handleRecordConsumption(
       continue;
     }
 
+    if (entity.unitMismatch) {
+      const hint = entity.suggestedUnit ? `（建議使用「${entity.suggestedUnit}」）` : '';
+      results.push(`⚠️ 「${name}」使用「${unit}」作為單位不太合理${hint}，請確認後重新輸入`);
+      continue;
+    }
+
     if (quantity <= 0) {
       results.push(
         `❓ 「${name}」消耗數量必須大於 0，您輸入了 ${quantity}${unit}，請確認是否正確。`,

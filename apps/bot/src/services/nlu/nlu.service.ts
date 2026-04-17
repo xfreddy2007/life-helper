@@ -27,6 +27,11 @@ const SYSTEM_PROMPT = `你是「居家生活小幫手」LINE Bot 的自然語言
 - items[].unit: 單位，如「杯」、「瓶」、「包」、「kg」
 - items[].expiryDate: 到期日，轉為 ISO 日期字串（YYYY-MM-DD），如「2026/12」→「2026-12-01」
 - items[].expiryDays: 使用者以「N天」表示的有效天數
+- items[].unitMismatch: 布林值；當使用者指定的單位對該物品在語意上不合理時設為 true，否則設為 false
+  - 判斷原則：考慮現實生活中如何購買或測量該物品
+  - 例子（mismatch=true）：可樂「張」、牛奶「平方公尺」、白米「公里」、衛生紙「毫升」
+  - 例子（mismatch=false）：可樂「罐/瓶/ml」、牛奶「盒/瓶/ml」、白米「kg/g/杯」、衛生紙「包/抽」
+- items[].suggestedUnit: 當 unitMismatch=true 時，填入對該物品最常見、合理的單位（如「罐」、「瓶」、「kg」）；否則設為 null
 - category: 品類名稱，如「調味料」、「食材」
 - targetDate: 查詢的目標日期
 
@@ -36,7 +41,17 @@ const SYSTEM_PROMPT = `你是「居家生活小幫手」LINE Bot 的自然語言
 {
   "intent": "<INTENT>",
   "entities": {
-    "items": [...] | null,
+    "items": [
+      {
+        "name": "<string>",
+        "quantity": <number> | null,
+        "unit": "<string>" | null,
+        "expiryDate": "<YYYY-MM-DD>" | null,
+        "expiryDays": <number> | null,
+        "unitMismatch": <true|false>,
+        "suggestedUnit": "<string>" | null
+      }
+    ] | null,
     "category": "<string>" | null,
     "targetDate": "<ISO date>" | null
   },

@@ -8,6 +8,7 @@ import {
   calculateWeeklyConsumptionRate,
 } from '../services/anomaly.service.js';
 import { getSession, setSession, clearSession, newSession } from '../services/session.js';
+import { formatDate } from '../lib/format.js';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ReplyMessage } from './intent-router.js';
 
@@ -77,6 +78,36 @@ export async function handleRecordConsumption(
         `❓ 「${name}」目前庫存只有 ${available}，但您輸入消耗 ${requested}，請確認數量是否正確。`,
       );
       continue;
+    }
+
+    // Expiry-batch mismatch check: user specified a date that doesn't exist in stock
+    if (expiryDate) {
+      const target = new Date(expiryDate);
+      target.setHours(0, 0, 0, 0);
+      const hasMatch = item.expiryBatches.some((b) => {
+        if (!b.expiryDate) return false;
+        const d = new Date(b.expiryDate);
+        d.setHours(0, 0, 0, 0);
+        return d.getTime() === target.getTime();
+      });
+      if (!hasMatch) {
+        const batchLines = item.expiryBatches
+          .map(
+            (b) =>
+              `  ${+b.quantity.toFixed(2)}${b.unit}${b.expiryDate ? `（到期：${formatDate(b.expiryDate)}）` : ''}`,
+          )
+          .join('\n');
+        const pending: PendingConsumption = { itemId: item.id, itemName: name, quantity, unit };
+        const sess = newSession('RESTOCK_CONFIRM');
+        sess.data = { pendingConsumption: pending };
+        await setSession(sourceId, sess);
+        return [
+          {
+            type: 'text',
+            text: `⚠️ 「${name}」沒有到期日為 ${formatDate(target)} 的庫存批次。\n\n目前批次：\n${batchLines}\n\n是否要消耗 ${quantity}${unit} 的現有庫存（依先進先出順序）？\n• 傳「確認」繼續\n• 傳「取消」放棄`,
+          },
+        ];
+      }
     }
 
     // Anomaly detection

@@ -196,7 +196,7 @@ async function beginOnboarding(sourceId: string, afterReset = false): Promise<Re
 
 /**
  * Handles a user reply when we're waiting for an expiry date.
- * Accepts a date string, "跳過", or falls back to today.
+ * Accepts a date string, "跳過", "下一項", "完成", or re-prompts on unrecognized input.
  */
 async function handleExpiryDateResponse(
   nlu: NluResult,
@@ -207,20 +207,40 @@ async function handleExpiryDateResponse(
   const current = queue[0]!;
   const remaining = queue.slice(1);
   const completionPending = Boolean(session.data.completionPending);
+  const trimmed = nlu.rawText.trim();
 
-  // Check if user wants to complete during clarification
+  // Check if user wants to complete all
   const wantsDone =
-    nlu.rawText.trim() === '完成' ||
+    trimmed === '完成' ||
     (nlu.intent === 'CONFIRM_YES' && remaining.length === 0 && completionPending);
 
-  // Parse expiry date from the reply
-  const expiryDate = parseExpiryFromText(nlu.rawText) ?? todayMidnight();
+  // Try to parse an explicit date
+  const parsedDate = tryParseDate(trimmed);
+
+  // Recognised "proceed without date" keywords
+  const isSkip = /跳過|沒有|無|不知道/.test(trimmed);
+  const isNext = /下一項|下一个|下一步|繼續/.test(trimmed);
+
+  // None of the above → ask again without advancing
+  if (!parsedDate && !isSkip && !isNext && !wantsDone) {
+    return [
+      {
+        type: 'text',
+        text: `❓ 「${current.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請傳「跳過」`,
+      },
+    ];
+  }
+
+  const expiryDate = parsedDate ?? todayMidnight();
+  const todayNotice = !parsedDate
+    ? `\n（${current.name} 無到期日，已使用今天日期 ${fmtDate(expiryDate)} 記錄）`
+    : '';
 
   // Save the current pending item
   const { item } = await findOrCreateItem(current.name, current.categoryId, [current.unit]);
   await addStock(item.id, { quantity: current.quantity, unit: current.unit, expiryDate });
 
-  // If "完成" appeared, drain remaining with today's date and complete
+  // "完成" — drain remaining with today's date and complete
   if (wantsDone) {
     for (const pending of remaining) {
       const { item: pi } = await findOrCreateItem(pending.name, pending.categoryId, [pending.unit]);
@@ -231,7 +251,9 @@ async function handleExpiryDateResponse(
       });
     }
     await clearSession(sourceId);
-    return [{ type: 'text', text: '✅ 盤點完成！\n\n傳「查詢庫存」查看剛才建立的記錄 😊' }];
+    return [
+      { type: 'text', text: `✅ 盤點完成！${todayNotice}\n\n傳「查詢庫存」查看剛才建立的記錄 😊` },
+    ];
   }
 
   // More items waiting for expiry date
@@ -245,7 +267,7 @@ async function handleExpiryDateResponse(
     return [
       {
         type: 'text',
-        text: `❓ 「${next.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請傳「跳過」`,
+        text: `${todayNotice ? todayNotice + '\n\n' : ''}❓ 「${next.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請傳「跳過」`,
       },
     ];
   }
@@ -253,7 +275,9 @@ async function handleExpiryDateResponse(
   // Queue exhausted — complete or continue
   if (completionPending) {
     await clearSession(sourceId);
-    return [{ type: 'text', text: '✅ 盤點完成！\n\n傳「查詢庫存」查看剛才建立的記錄 😊' }];
+    return [
+      { type: 'text', text: `✅ 盤點完成！${todayNotice}\n\n傳「查詢庫存」查看剛才建立的記錄 😊` },
+    ];
   }
 
   const updatedSession: ConversationState = {
@@ -262,16 +286,14 @@ async function handleExpiryDateResponse(
     data: { pendingExpiryQueue: [], completionPending: false },
   };
   await setSession(sourceId, updatedSession);
-  return [{ type: 'text', text: '繼續輸入下一項，或傳「完成」結束盤點。' }];
+  return [{ type: 'text', text: `繼續輸入下一項，或傳「完成」結束盤點。${todayNotice}` }];
 }
 
 /**
  * Extract a date from free text.
- * Tries YYYY/MM/DD and YYYY/MM patterns; returns null if none found or user said "跳過".
+ * Tries YYYY/MM/DD and YYYY/MM patterns; returns null if none found.
  */
-function parseExpiryFromText(text: string): Date | null {
-  if (/跳過|沒有|無|不知道/.test(text)) return null;
-
+function tryParseDate(text: string): Date | null {
   const match = text.match(/(\d{4})[/-](\d{1,2})(?:[/-](\d{1,2}))?/);
   if (!match) return null;
 
@@ -282,6 +304,13 @@ function parseExpiryFromText(text: string): Date | null {
   const date = new Date(year, month, day);
   if (isNaN(date.getTime()) || year < 2020 || year > 2100) return null;
   return date;
+}
+
+function fmtDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}/${m}/${day}`;
 }
 
 function todayMidnight(): Date {

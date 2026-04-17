@@ -91,28 +91,46 @@ export async function createItem(input: CreateItemInput): Promise<ItemWithBatche
 }
 
 /**
- * Add a stock batch to an item and update totalQuantity atomically.
+ * Add stock to an item.
+ * If a batch with the same unit and expiryDate already exists it is merged
+ * (quantity incremented) rather than creating a duplicate row.
  */
 export async function addStock(
   itemId: string,
   input: AddStockInput,
 ): Promise<ItemWithBatchesAndCategory> {
-  const [, item] = await prisma.$transaction([
-    prisma.expiryBatch.create({
-      data: {
+  return prisma.$transaction(async (tx) => {
+    // Look for an existing batch with the same unit + expiryDate
+    const existing = await tx.expiryBatch.findFirst({
+      where: {
         itemId,
-        quantity: input.quantity,
         unit: input.unit,
-        expiryDate: input.expiryDate,
+        expiryDate: input.expiryDate ?? null,
       },
-    }),
-    prisma.item.update({
+    });
+
+    if (existing) {
+      await tx.expiryBatch.update({
+        where: { id: existing.id },
+        data: { quantity: { increment: input.quantity } },
+      });
+    } else {
+      await tx.expiryBatch.create({
+        data: {
+          itemId,
+          quantity: input.quantity,
+          unit: input.unit,
+          expiryDate: input.expiryDate,
+        },
+      });
+    }
+
+    return tx.item.update({
       where: { id: itemId },
       data: { totalQuantity: { increment: input.quantity } },
       include: { expiryBatches: { orderBy: { expiryDate: 'asc' } }, category: true },
-    }),
-  ]);
-  return item;
+    });
+  });
 }
 
 /**

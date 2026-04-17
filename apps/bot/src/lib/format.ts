@@ -72,11 +72,20 @@ export function formatInventoryList(
   for (const [cat, catItems] of grouped) {
     lines.push(`【${cat}】`);
     for (const item of catItems) {
-      const unit = item.units[0] ?? '';
-      const qty = `${fmtQty(item.totalQuantity)}${unit}`;
+      const batchUnits = new Set(item.expiryBatches.map((b) => b.unit));
+      const mixedUnits = batchUnits.size > 1;
+
       const batches =
         item.expiryBatches.length > 0 ? `（${formatBatches(item.expiryBatches)}）` : '';
-      lines.push(`  ${item.name}：${qty} ${batches}`.trimEnd());
+
+      if (mixedUnits) {
+        // Total is ambiguous — show batches only
+        lines.push(`  ${item.name}：${batches}`.trimEnd());
+      } else {
+        const unit = item.units[0] ?? '';
+        const qty = `${fmtQty(item.totalQuantity)}${unit}`;
+        lines.push(`  ${item.name}：${qty} ${batches}`.trimEnd());
+      }
     }
   }
 

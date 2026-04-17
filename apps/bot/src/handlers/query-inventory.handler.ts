@@ -20,14 +20,17 @@ export async function handleQueryInventory(nlu: NluResult): Promise<ReplyMessage
       ];
     }
 
+    const batchUnits = new Set(item.expiryBatches.map((b) => b.unit));
+    const mixedUnits = batchUnits.size > 1;
     const unit = item.units[0] ?? '';
+    const stockLine = mixedUnits ? '（各批次單位不同，請見明細）' : `${item.totalQuantity}${unit}`;
     const batchInfo =
       item.expiryBatches.length > 0 ? `\n到期批次：${formatBatches(item.expiryBatches)}` : '';
 
     return [
       {
         type: 'text',
-        text: `📦 ${item.name}\n類別：${item.category.name}\n庫存：${item.totalQuantity}${unit}${batchInfo}`,
+        text: `📦 ${item.name}\n類別：${item.category.name}\n庫存：${stockLine}${batchInfo}`,
       },
     ];
   }

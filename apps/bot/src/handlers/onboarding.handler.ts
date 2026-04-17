@@ -92,6 +92,7 @@ export async function handleOnboardingStep(
 
   const results: string[] = [];
   const newPendingQueue: PendingExpiryItem[] = [];
+  const afterReset = Boolean(session.data.afterReset);
 
   for (const entity of itemEntities) {
     const { name, quantity, unit, expiryDate, expiryDays } = entity;
@@ -119,7 +120,15 @@ export async function handleOnboardingStep(
     }
 
     if (resolvedExpiry) {
-      // Expiry provided → save immediately
+      // Past-date check (skip when after a reset)
+      if (!afterReset && resolvedExpiry < todayMidnight()) {
+        results.push(
+          `⚠️ 「${name}」的到期日 ${fmtDate(resolvedExpiry)} 已過期，請重新提供有效到期日`,
+        );
+        newPendingQueue.push({ name, quantity, unit, categoryId: category.id });
+        continue;
+      }
+      // Expiry valid → save immediately
       const { item, created } = await findOrCreateItem(name, category.id, [unit]);
       await addStock(item.id, { quantity, unit, expiryDate: resolvedExpiry });
       const tag = created ? '（新建立）' : '（已更新）';
@@ -183,6 +192,7 @@ async function beginOnboarding(sourceId: string, afterReset = false): Promise<Re
 
   const state = newSession('ONBOARDING');
   state.step = 1;
+  state.data = { afterReset };
   await setSession(sourceId, state);
 
   const prefix = afterReset ? '✅ 庫存已清除。\n\n' : '';
@@ -221,12 +231,24 @@ async function handleExpiryDateResponse(
   const isSkip = /跳過|沒有|無|不知道/.test(trimmed);
   const isNext = /下一項|下一个|下一步|繼續/.test(trimmed);
 
+  const afterReset = Boolean(session.data.afterReset);
+
   // None of the above → ask again without advancing
   if (!parsedDate && !isSkip && !isNext && !wantsDone) {
     return [
       {
         type: 'text',
         text: `❓ 「${current.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請傳「跳過」`,
+      },
+    ];
+  }
+
+  // Past-date check (skip when after a reset)
+  if (parsedDate && !afterReset && parsedDate < todayMidnight()) {
+    return [
+      {
+        type: 'text',
+        text: `❌ 到期日 ${fmtDate(parsedDate)} 已是過去的日期，請重新輸入有效到期日。\n\n若無到期日請傳「跳過」`,
       },
     ];
   }

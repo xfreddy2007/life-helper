@@ -6,6 +6,7 @@ import {
   getDefaultCategory,
   findPendingItemsByItemIds,
   updatePurchaseListItemStatus,
+  createOperationLog,
 } from '@life-helper/database/repositories';
 import { setSession, clearSession, newSession } from '../services/session.js';
 import type { ConversationState } from '../services/session.js';
@@ -102,6 +103,15 @@ export async function handleRestock(nlu: NluResult, sourceId: string): Promise<R
 
     const expStr = `（到期：${resolvedExpiry.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}）`;
     completedLines.push(`✅ ${name} +${quantity}${unit} ${expStr}`);
+
+    await createOperationLog(sourceId, 'RESTOCK', `補貨 ${name} +${quantity}${unit} ${expStr}`, {
+      type: 'RESTOCK',
+      itemId: saveItem.id,
+      itemName: name,
+      quantity,
+      unit,
+      expiryDate: resolvedExpiry.toISOString(),
+    });
   }
 
   // Some items need expiry clarification → start RESTOCK_EXPIRY flow
@@ -200,6 +210,21 @@ export async function handleRestockExpiryResponse(
   const expStr = parsedDate
     ? `（到期：${expiryDate.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}）`
     : todayNotice;
+
+  await createOperationLog(
+    sourceId,
+    'RESTOCK',
+    `補貨 ${current.name} +${current.quantity}${current.unit} ${expStr}`,
+    {
+      type: 'RESTOCK',
+      itemId: item.id,
+      itemName: current.name,
+      quantity: current.quantity,
+      unit: current.unit,
+      expiryDate: expiryDate.toISOString(),
+    },
+  );
+
   const newCompletedLines = [
     ...completedLines,
     `✅ ${current.name} +${current.quantity}${current.unit} ${expStr}`,

@@ -11,6 +11,7 @@ export const IntentSchema = z.enum([
   'CONFIRM_YES',
   'CONFIRM_NO',
   'SET_CONFIG',
+  'REVERT_OPERATION',
   'UNKNOWN',
 ]);
 

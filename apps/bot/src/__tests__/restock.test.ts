@@ -10,6 +10,7 @@ vi.mock('@life-helper/database/repositories', () => ({
   getDefaultCategory: vi.fn().mockResolvedValue({ id: 'cat-1', name: '食材' }),
   findPendingItemsByItemIds: vi.fn().mockResolvedValue([]),
   updatePurchaseListItemStatus: vi.fn().mockResolvedValue({}),
+  createOperationLog: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../services/session.js', () => ({

@@ -1,6 +1,10 @@
 import { prisma } from '@life-helper/database';
 import type { ExpiryBatch } from '@life-helper/database';
-import { findItemByName, getRecentConsumptionLogs } from '@life-helper/database/repositories';
+import {
+  findItemByName,
+  getRecentConsumptionLogs,
+  createOperationLog,
+} from '@life-helper/database/repositories';
 import { planFifoDeduction } from '../services/fifo.service.js';
 import { convertUnit } from '../lib/unit-convert.js';
 import {
@@ -156,6 +160,7 @@ export async function handleRecordConsumption(
       item.expiryBatches,
       itemUnit,
       expiryDate ? new Date(expiryDate) : undefined,
+      sourceId,
     );
     results.push(line);
     anyConsumed = true;
@@ -251,6 +256,7 @@ export async function handleAnomalyConfirmation(
     item.expiryBatches,
     item.units[0] ?? pending.unit,
     pending.expiryDate ? new Date(pending.expiryDate) : undefined,
+    sourceId,
   );
 
   const allLines = [...completedLines, line];
@@ -304,7 +310,8 @@ async function executeConsumption(
   unit: string,
   batches: ExpiryBatch[],
   itemUnit: string,
-  preferredExpiry?: Date,
+  preferredExpiry: Date | undefined,
+  sourceId: string,
 ): Promise<string> {
   // Convert consumption quantity to item's storage unit if units differ
   const converted = convertUnit(quantity, unit, itemUnit);
@@ -312,7 +319,11 @@ async function executeConsumption(
 
   const deduction = planFifoDeduction(batches, deductQty, preferredExpiry);
 
-  // Apply batch deductions and insert log atomically
+  // Build a lookup from batchId → batch metadata (needed for logging)
+  const batchMap = new Map(batches.map((b) => [b.id, b]));
+
+  // Apply batch deductions and insert log atomically; capture the log id
+  let consumptionLogId = '';
   await prisma.$transaction(async (tx) => {
     for (const step of deduction.plan) {
       if (step.remainingQty <= 0) {
@@ -330,10 +341,33 @@ async function executeConsumption(
       data: { totalQuantity: { decrement: deduction.totalDeducted } },
     });
 
-    await tx.consumptionLog.create({
+    const log = await tx.consumptionLog.create({
       data: { itemId, quantity: deduction.totalDeducted, unit: itemUnit },
     });
+    consumptionLogId = log.id;
   });
+
+  // Log the operation for potential reversal (non-blocking)
+  if (deduction.totalDeducted > 0) {
+    await createOperationLog(sourceId, 'CONSUME', `消耗 ${itemName} -${quantity}${unit}`, {
+      type: 'CONSUME',
+      itemId,
+      itemName,
+      totalDeducted: deduction.totalDeducted,
+      itemUnit,
+      consumptionLogId,
+      steps: deduction.plan.map((step) => {
+        const b = batchMap.get(step.batchId);
+        return {
+          batchId: step.batchId,
+          deducted: step.deductQty,
+          unit: b?.unit ?? itemUnit,
+          expiryDate: b?.expiryDate?.toISOString() ?? null,
+          wasDeleted: step.remainingQty <= 0,
+        };
+      }),
+    });
+  }
 
   if (deduction.shortfall > 0) {
     const shortfallInUserUnit =

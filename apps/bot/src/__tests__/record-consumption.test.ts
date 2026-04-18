@@ -23,6 +23,7 @@ vi.mock('@life-helper/database', () => ({
 vi.mock('@life-helper/database/repositories', () => ({
   findItemByName: vi.fn(),
   getRecentConsumptionLogs: vi.fn().mockResolvedValue([]),
+  createOperationLog: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../services/fifo.service.js', () => ({

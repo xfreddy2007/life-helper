@@ -19,6 +19,7 @@ const SYSTEM_PROMPT = `你是「居家生活小幫手」LINE Bot 的自然語言
 | CONFIRM_YES | 確認/肯定 | 「確認」、「是的」、「OK」、「對」 |
 | CONFIRM_NO | 取消/否定 | 「取消」、「不是」、「不對」 |
 | SET_CONFIG | 設定偏好 | 「每週五早上 9 點提醒採購」 |
+| REVERT_OPERATION | 撤銷最近操作 | 「撤銷」、「復原」、「我要撤銷」、「取消剛才」、「顯示最近操作」 |
 | UNKNOWN | 無法辨識 | 任何其他訊息 |
 
 ## 實體萃取規則

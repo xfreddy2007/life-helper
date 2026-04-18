@@ -18,6 +18,7 @@ import {
 import { handleQueryPurchaseList } from './query-purchase-list.handler.js';
 import { handleReceiptConfirmation } from './receipt-import.handler.js';
 import { handleRestockExpiryResponse } from './restock.handler.js';
+import { handleRevertOperation, handleRevertSelect } from './revert.handler.js';
 import { clearSession } from '../services/session.js';
 import { logger } from '../lib/logger.js';
 
@@ -91,6 +92,11 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
     return handleRestockExpiryResponse(nluResult, session, sourceId);
   }
 
+  // Revert operation selection flow
+  if (session?.flow === 'REVERT_SELECT') {
+    return handleRevertSelect(nluResult.rawText, sourceId);
+  }
+
   // Partial reset confirmation flow
   if (session?.flow === 'PARTIAL_RESET_CONFIRM') {
     if (nluResult.intent === 'CONFIRM_YES' || nluResult.rawText.trim() === '確認') {
@@ -129,6 +135,9 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
     case 'CONFIRM_YES':
     case 'CONFIRM_NO':
       return [{ type: 'text', text: '目前沒有待確認的操作。' }];
+
+    case 'REVERT_OPERATION':
+      return handleRevertOperation(sourceId);
 
     case 'SET_CONFIG':
       return [{ type: 'text', text: '⚙️ 設定功能即將開放（Phase 6）' }];

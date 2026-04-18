@@ -6,7 +6,8 @@ export type ConversationFlow =
   | 'RESTOCK_CONFIRM'
   | 'RESET_CONFIRM'
   | 'RESTOCK_EXPIRY'
-  | 'PARTIAL_RESET_CONFIRM';
+  | 'PARTIAL_RESET_CONFIRM'
+  | 'REVERT_SELECT';
 
 export interface ConversationState {
   flow: ConversationFlow | null;

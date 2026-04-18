@@ -8,6 +8,7 @@ import {
   resetAllInventory,
   findItemByName,
   resetQuantity,
+  createOperationLog,
 } from '@life-helper/database/repositories';
 import { getSession, setSession, clearSession, newSession } from '../services/session.js';
 import type { NluResult } from '../services/nlu/schema.js';
@@ -241,14 +242,40 @@ export async function handlePartialResetConfirmed(sourceId: string): Promise<Rep
   await clearSession(sourceId);
 
   const results: string[] = [];
+  const loggedItems: Array<{
+    itemId: string;
+    itemName: string;
+    previousTotalQuantity: number;
+    previousBatches: Array<{ quantity: number; unit: string; expiryDate: string | null }>;
+  }> = [];
+
   for (const name of itemNames) {
     const item = await findItemByName(name);
     if (!item) {
       results.push(`⚠️ 找不到「${name}」，略過`);
       continue;
     }
+    // Capture before-state for reversal
+    loggedItems.push({
+      itemId: item.id,
+      itemName: name,
+      previousTotalQuantity: item.totalQuantity,
+      previousBatches: item.expiryBatches.map((b) => ({
+        quantity: b.quantity,
+        unit: b.unit,
+        expiryDate: b.expiryDate?.toISOString() ?? null,
+      })),
+    });
     await resetQuantity(item.id, 0, item.units[0] ?? '');
     results.push(`🔄 已清空「${name}」`);
+  }
+
+  if (loggedItems.length > 0) {
+    const names = loggedItems.map((e) => e.itemName).join('、');
+    await createOperationLog(sourceId, 'PARTIAL_RESET', `部分重置：${names}`, {
+      type: 'PARTIAL_RESET',
+      items: loggedItems,
+    });
   }
 
   return [

@@ -17,6 +17,7 @@ vi.mock('@life-helper/database/repositories', () => ({
   }),
   findItemByName: vi.fn().mockResolvedValue(null),
   resetQuantity: vi.fn().mockResolvedValue({}),
+  createOperationLog: vi.fn().mockResolvedValue(undefined),
   addStock: vi.fn().mockResolvedValue({}),
 }));
 

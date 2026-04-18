@@ -28,13 +28,42 @@ export interface ConsumeReversal {
   }>;
 }
 
-export type ReversalData = RestockReversal | ConsumeReversal;
+// Shared snapshot of a single expiry batch (unit + quantity + expiry)
+export interface BatchSnapshot {
+  quantity: number;
+  unit: string;
+  expiryDate: string | null; // ISO string
+}
+
+export interface ResetItemReversal {
+  type: 'RESET_ITEM';
+  itemId: string;
+  itemName: string;
+  previousTotalQuantity: number;
+  previousBatches: BatchSnapshot[];
+}
+
+export interface PartialResetReversal {
+  type: 'PARTIAL_RESET';
+  items: Array<{
+    itemId: string;
+    itemName: string;
+    previousTotalQuantity: number;
+    previousBatches: BatchSnapshot[];
+  }>;
+}
+
+export type ReversalData =
+  | RestockReversal
+  | ConsumeReversal
+  | ResetItemReversal
+  | PartialResetReversal;
 
 // ── Repository functions ──────────────────────────────────────
 
 export async function createOperationLog(
   sourceId: string,
-  type: 'RESTOCK' | 'CONSUME',
+  type: 'RESTOCK' | 'CONSUME' | 'RESET_ITEM' | 'PARTIAL_RESET',
   description: string,
   reversalData: ReversalData,
 ): Promise<void> {
@@ -65,10 +94,10 @@ export async function getOperationLogById(id: string): Promise<OperationLog | nu
 export async function reverseOperation(log: OperationLog): Promise<string> {
   const data = log.reversalData as unknown as ReversalData;
 
-  if (data.type === 'RESTOCK') {
-    return reverseRestock(log.id, data);
-  }
-  return reverseConsume(log.id, data);
+  if (data.type === 'RESTOCK') return reverseRestock(log.id, data);
+  if (data.type === 'CONSUME') return reverseConsume(log.id, data);
+  if (data.type === 'RESET_ITEM') return reverseResetItem(log.id, data);
+  return reversePartialReset(log.id, data);
 }
 
 // ── Internal reversal helpers ─────────────────────────────────
@@ -146,4 +175,58 @@ async function reverseConsume(logId: string, data: ConsumeReversal): Promise<str
   });
 
   return `✅ 已撤銷消耗：${itemName} +${totalDeducted}${itemUnit}`;
+}
+
+async function reverseResetItem(logId: string, data: ResetItemReversal): Promise<string> {
+  const { itemId, itemName, previousTotalQuantity, previousBatches } = data;
+
+  await prisma.$transaction(async (tx) => {
+    // Wipe current batches and restore the saved snapshot
+    await tx.expiryBatch.deleteMany({ where: { itemId } });
+    for (const b of previousBatches) {
+      await tx.expiryBatch.create({
+        data: {
+          itemId,
+          quantity: b.quantity,
+          unit: b.unit,
+          expiryDate: b.expiryDate ? new Date(b.expiryDate) : null,
+        },
+      });
+    }
+    await tx.item.update({
+      where: { id: itemId },
+      data: { totalQuantity: previousTotalQuantity },
+    });
+    await tx.operationLog.update({ where: { id: logId }, data: { reversed: true } });
+  });
+
+  return `✅ 已撤銷重置：${itemName} 已還原至 ${previousTotalQuantity}`;
+}
+
+async function reversePartialReset(logId: string, data: PartialResetReversal): Promise<string> {
+  const { items } = data;
+
+  await prisma.$transaction(async (tx) => {
+    for (const entry of items) {
+      await tx.expiryBatch.deleteMany({ where: { itemId: entry.itemId } });
+      for (const b of entry.previousBatches) {
+        await tx.expiryBatch.create({
+          data: {
+            itemId: entry.itemId,
+            quantity: b.quantity,
+            unit: b.unit,
+            expiryDate: b.expiryDate ? new Date(b.expiryDate) : null,
+          },
+        });
+      }
+      await tx.item.update({
+        where: { id: entry.itemId },
+        data: { totalQuantity: entry.previousTotalQuantity },
+      });
+    }
+    await tx.operationLog.update({ where: { id: logId }, data: { reversed: true } });
+  });
+
+  const names = items.map((e) => e.itemName).join('、');
+  return `✅ 已撤銷部分重置：${names} 已還原`;
 }

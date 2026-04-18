@@ -118,7 +118,7 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
       return handleRestock(nluResult, sourceId);
 
     case 'RESET_ITEM':
-      return handleResetItem(nluResult);
+      return handleResetItem(nluResult, sourceId);
 
     case 'PARTIAL_RESET':
       return handlePartialReset(nluResult, sourceId);

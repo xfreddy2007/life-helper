@@ -8,6 +8,8 @@ import {
   handleStartOnboarding,
   handleOnboardingStep,
   handleResetConfirmed,
+  handlePartialReset,
+  handlePartialResetConfirmed,
 } from './onboarding.handler.js';
 import {
   handleRecordConsumption,
@@ -89,6 +91,18 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
     return handleRestockExpiryResponse(nluResult, session, sourceId);
   }
 
+  // Partial reset confirmation flow
+  if (session?.flow === 'PARTIAL_RESET_CONFIRM') {
+    if (nluResult.intent === 'CONFIRM_YES' || nluResult.rawText.trim() === '確認') {
+      return handlePartialResetConfirmed(sourceId);
+    }
+    if (nluResult.intent === 'CONFIRM_NO' || nluResult.rawText.trim() === '取消') {
+      await clearSession(sourceId);
+      return [{ type: 'text', text: '已取消，庫存未變動。' }];
+    }
+    return [{ type: 'text', text: '請傳「確認」繼續重置，或傳「取消」放棄。' }];
+  }
+
   // ── Top-level intent dispatch ────────────────────────────
   switch (nluResult.intent) {
     case 'QUERY_INVENTORY':
@@ -99,6 +113,9 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
 
     case 'RESET_ITEM':
       return handleResetItem(nluResult);
+
+    case 'PARTIAL_RESET':
+      return handlePartialReset(nluResult, sourceId);
 
     case 'START_ONBOARDING':
       return handleStartOnboarding(sourceId);

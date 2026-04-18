@@ -7,6 +7,7 @@ export const IntentSchema = z.enum([
   'QUERY_PURCHASE_LIST',
   'START_ONBOARDING',
   'RESET_ITEM',
+  'PARTIAL_RESET',
   'CONFIRM_YES',
   'CONFIRM_NO',
   'SET_CONFIG',

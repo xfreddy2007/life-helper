@@ -6,8 +6,10 @@ import {
   findOrCreateItem,
   addStock,
   resetAllInventory,
+  findItemByName,
+  resetQuantity,
 } from '@life-helper/database/repositories';
-import { setSession, clearSession, newSession } from '../services/session.js';
+import { getSession, setSession, clearSession, newSession } from '../services/session.js';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ReplyMessage } from './intent-router.js';
 import type { ConversationState } from '../services/session.js';
@@ -183,6 +185,76 @@ export async function handleOnboardingStep(
     {
       type: 'text',
       text: `${results.join('\n')}\n\n繼續輸入下一項，或傳「完成」結束盤點。`,
+    },
+  ];
+}
+
+/**
+ * Initiated by PARTIAL_RESET intent.
+ * Shows current stock for each named item and asks for confirmation.
+ */
+export async function handlePartialReset(
+  nlu: NluResult,
+  sourceId: string,
+): Promise<ReplyMessage[]> {
+  const itemNames = (nlu.entities.items ?? []).map((e) => e.name).filter(Boolean) as string[];
+
+  if (itemNames.length === 0) {
+    return [
+      {
+        type: 'text',
+        text: '請指定要重置的物品，例如：\n「重置庫存 牛奶 可樂」',
+      },
+    ];
+  }
+
+  const itemLines: string[] = [];
+  for (const name of itemNames) {
+    const item = await findItemByName(name);
+    if (item) {
+      const qty = `${+item.totalQuantity.toFixed(2)}${item.units[0] ?? ''}`;
+      itemLines.push(`• ${name}（目前 ${qty}）`);
+    } else {
+      itemLines.push(`• ${name}（找不到此物品）`);
+    }
+  }
+
+  const state = newSession('PARTIAL_RESET_CONFIRM');
+  state.data = { itemNames };
+  await setSession(sourceId, state);
+
+  return [
+    {
+      type: 'text',
+      text: `⚠️ 確認要重置以下物品的庫存嗎？\n\n${itemLines.join('\n')}\n\n此操作將清除所選物品的所有批次記錄。\n• 傳「確認」繼續\n• 傳「取消」放棄`,
+    },
+  ];
+}
+
+/**
+ * Called after user confirms partial reset.
+ * Reads item names from session, resets each to 0, then clears session.
+ */
+export async function handlePartialResetConfirmed(sourceId: string): Promise<ReplyMessage[]> {
+  const session = await getSession(sourceId);
+  const itemNames = (session?.data.itemNames as string[] | undefined) ?? [];
+  await clearSession(sourceId);
+
+  const results: string[] = [];
+  for (const name of itemNames) {
+    const item = await findItemByName(name);
+    if (!item) {
+      results.push(`⚠️ 找不到「${name}」，略過`);
+      continue;
+    }
+    await resetQuantity(item.id, 0, item.units[0] ?? '');
+    results.push(`🔄 已清空「${name}」`);
+  }
+
+  return [
+    {
+      type: 'text',
+      text: `${results.join('\n')}\n\n可傳「補充庫存」或「${itemNames[0] ?? '牛奶'} 2 瓶 2026/12」重新登記庫存。`,
     },
   ];
 }

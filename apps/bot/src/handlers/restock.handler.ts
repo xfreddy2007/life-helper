@@ -27,10 +27,18 @@ export async function handleRestock(nlu: NluResult, sourceId: string): Promise<R
   const itemEntities = nlu.entities.items;
 
   if (!itemEntities || itemEntities.length === 0) {
+    const session = newSession('RESTOCK_EXPIRY');
+    session.data = {
+      pendingRestockQueue: [],
+      completedLines: [],
+      restockedItemIds: [],
+      awaitingFirstInput: true,
+    };
+    await setSession(sourceId, session);
     return [
       {
         type: 'text',
-        text: '請告訴我補充了什麼物品，例如：\n「今天買了橄欖油 2 瓶，到期 2026/12」',
+        text: '請告訴我補充了什麼物品，例如：\n「今天買了橄欖油 2 瓶，到期 2026/12」\n\n傳「結束」取消',
       },
     ];
   }
@@ -127,6 +135,21 @@ export async function handleRestockExpiryResponse(
   const queue = (session.data.pendingRestockQueue ?? []) as PendingRestockItem[];
   const completedLines = (session.data.completedLines ?? []) as string[];
   const restockedItemIds = (session.data.restockedItemIds ?? []) as string[];
+  const awaitingFirstInput = Boolean(session.data.awaitingFirstInput);
+
+  const trimmed = nlu.rawText.trim();
+  const isDoneEarly = /完成|結束|取消|停止/.test(trimmed) || nlu.intent === 'CONFIRM_NO';
+
+  // Still waiting for the user to tell us what to restock
+  if (awaitingFirstInput) {
+    if (isDoneEarly) {
+      await clearSession(sourceId);
+      return [{ type: 'text', text: '已取消補貨。' }];
+    }
+    // Treat the new message as a fresh restock request
+    await clearSession(sourceId);
+    return handleRestock(nlu, sourceId);
+  }
 
   if (queue.length === 0) {
     await clearSession(sourceId);
@@ -135,11 +158,17 @@ export async function handleRestockExpiryResponse(
 
   const current = queue[0]!;
   const remaining = queue.slice(1);
-  const trimmed = nlu.rawText.trim();
 
   const parsedDate = tryParseDate(trimmed);
   const isSkip = /跳過|沒有|無|不知道/.test(trimmed);
   const isNext = /下一項|下一个|下一步|繼續/.test(trimmed);
+  const isDone = /完成|結束|取消|停止/.test(trimmed) || nlu.intent === 'CONFIRM_NO';
+
+  // User wants to stop — discard remaining queue and finish with what's already saved
+  if (isDone) {
+    await clearSession(sourceId);
+    return finishRestock(completedLines, restockedItemIds);
+  }
 
   // Unrecognised input → re-prompt
   if (!parsedDate && !isSkip && !isNext) {

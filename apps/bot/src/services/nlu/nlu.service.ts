@@ -15,6 +15,7 @@ const SYSTEM_PROMPT = `你是「居家生活小幫手」LINE Bot 的自然語言
 | QUERY_PURCHASE_LIST | 查詢採購清單 | 「我這週要買什麼」、「採購清單給我看」 |
 | START_ONBOARDING | 開始初始建檔 | 「開始盤點」、「重新整理庫存」 |
 | RESET_ITEM | 重置單品庫存 | 「醬油重新盤點為 3 瓶」、「白米現在有 5kg」 |
+| PARTIAL_RESET | 重置指定多項物品庫存 | 「重置庫存 牛奶 可樂」、「牛奶和可樂重新盤點」、「清空白米跟橄欖油」 |
 | CONFIRM_YES | 確認/肯定 | 「確認」、「是的」、「OK」、「對」 |
 | CONFIRM_NO | 取消/否定 | 「取消」、「不是」、「不對」 |
 | SET_CONFIG | 設定偏好 | 「每週五早上 9 點提醒採購」 |

@@ -8,16 +8,20 @@ vi.mock('@life-helper/database/repositories', () => ({
     { id: 'cat-1', name: '食材', isDefault: true, defaultExpiryAlertDays: 7 },
     { id: 'cat-2', name: '調味料', isDefault: false, defaultExpiryAlertDays: 14 },
   ]),
+  listItems: vi.fn().mockResolvedValue([]),
   findCategoryByName: vi.fn().mockResolvedValue(null),
   getDefaultCategory: vi.fn().mockResolvedValue({ id: 'cat-1', name: '食材' }),
   findOrCreateItem: vi.fn().mockResolvedValue({
     item: { id: 'item-1', name: '白米' },
     created: true,
   }),
+  findItemByName: vi.fn().mockResolvedValue(null),
+  resetQuantity: vi.fn().mockResolvedValue({}),
   addStock: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('../services/session.js', () => ({
+  getSession: vi.fn().mockResolvedValue(null),
   setSession: vi.fn().mockResolvedValue(undefined),
   clearSession: vi.fn().mockResolvedValue(undefined),
   newSession: vi.fn().mockReturnValue({
@@ -94,16 +98,25 @@ describe('handleOnboardingStep', () => {
     expect(replies[0]!.text).toContain('格式不正確');
   });
 
-  it('adds stock and advances session on valid entity', async () => {
+  it('asks for expiry date when entity has no expiry', async () => {
     const nlu = makeNlu({
       entities: { items: [{ name: '白米', quantity: 5, unit: 'kg' }] },
     });
     const session = makeSession({ step: 1 });
     const replies = await handleOnboardingStep(nlu, session, 'group-1');
-    expect(mockAddStock).toHaveBeenCalled();
-    expect(mockSetSession).toHaveBeenCalledWith('group-1', expect.objectContaining({ step: 2 }));
+    expect(mockAddStock).not.toHaveBeenCalled();
+    expect(replies[0]!.text).toContain('到期日是');
     expect(replies[0]!.text).toContain('白米');
-    expect(replies[0]!.text).toContain('新建立');
+  });
+
+  it('adds stock immediately when entity includes expiryDate', async () => {
+    const nlu = makeNlu({
+      entities: { items: [{ name: '白米', quantity: 5, unit: 'kg', expiryDate: '2027-06-01' }] },
+    });
+    const session = makeSession({ step: 1 });
+    const replies = await handleOnboardingStep(nlu, session, 'group-1');
+    expect(mockAddStock).toHaveBeenCalled();
+    expect(replies[0]!.text).toContain('白米');
     expect(replies[0]!.text).toContain('繼續輸入');
   });
 });

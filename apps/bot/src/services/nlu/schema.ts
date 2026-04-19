@@ -35,6 +35,19 @@ export const NluResultSchema = z.object({
       .nullish(),
     category: z.string().nullish(),
     targetDate: z.string().nullish(),
+    config: z
+      .object({
+        cronKey: z.enum(['DAILY_CONFIRM_PUSH', 'EXPIRY_ALERT', 'WEEKLY_PURCHASE']).nullish(),
+        // Time-based schedule
+        hour: z.number().int().min(0).max(23).nullish(),
+        minute: z.number().int().min(0).max(59).nullish(),
+        weekdays: z.array(z.number().int().min(0).max(6)).nullish(), // [0]=Sun, [1,3,5]=Mon/Wed/Fri
+        // Interval-based schedule (mutually exclusive with hour/minute)
+        intervalSeconds: z.number().int().min(1).nullish(),
+        intervalMinutes: z.number().int().min(1).nullish(),
+        intervalHours: z.number().int().min(1).nullish(),
+      })
+      .nullish(),
   }),
   rawText: z.string(),
   confidence: z.number().min(0).max(1),

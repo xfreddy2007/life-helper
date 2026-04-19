@@ -135,49 +135,82 @@ describe('formatDailyConfirm', () => {
 // ── formatExpiryAlert ─────────────────────────────────────────
 
 describe('formatExpiryAlert', () => {
-  it('shows both expired and approaching sections when both present', () => {
-    const approaching = [
-      { quantity: 1, unit: 'kg', expiryDate: new Date('2026-04-20'), item: { name: '白米' } },
-    ];
-    const expired = [
-      { quantity: 0.5, unit: 'L', expiryDate: new Date('2026-04-10'), item: { name: '牛奶' } },
-    ];
-    const text = formatExpiryAlert(approaching, expired);
+  it('shows all three sections when all present', () => {
+    const text = formatExpiryAlert({
+      expired: [
+        { quantity: 0.5, unit: 'L', expiryDate: new Date('2026-04-10'), item: { name: '牛奶' } },
+      ],
+      expiresToday: [
+        { quantity: 1, unit: '瓶', expiryDate: new Date('2026-04-19'), item: { name: '醬油' } },
+      ],
+      expiresInWeek: [
+        { quantity: 1, unit: 'kg', expiryDate: new Date('2026-04-22'), item: { name: '白米' } },
+      ],
+    });
     expect(text).toContain('已過期');
-    expect(text).toContain('即將到期');
-    expect(text).toContain('白米');
+    expect(text).toContain('今日到期');
+    expect(text).toContain('一週內到期');
     expect(text).toContain('牛奶');
+    expect(text).toContain('醬油');
+    expect(text).toContain('白米');
   });
 
-  it('shows only expired section when no approaching', () => {
-    const expired = [
-      { quantity: 1, unit: 'L', expiryDate: new Date('2026-04-01'), item: { name: '醬油' } },
-    ];
-    const text = formatExpiryAlert([], expired);
+  it('shows only expired section when others empty', () => {
+    const text = formatExpiryAlert({
+      expired: [
+        { quantity: 1, unit: 'L', expiryDate: new Date('2026-04-01'), item: { name: '醬油' } },
+      ],
+      expiresToday: [],
+      expiresInWeek: [],
+    });
     expect(text).toContain('已過期');
-    expect(text).not.toContain('即將到期');
+    expect(text).not.toContain('今日到期');
+    expect(text).not.toContain('一週內到期');
   });
 
-  it('shows only approaching section when nothing expired', () => {
-    const approaching = [
-      { quantity: 2, unit: 'g', expiryDate: new Date('2026-04-20'), item: { name: '鹽' } },
-    ];
-    const text = formatExpiryAlert(approaching, []);
-    expect(text).toContain('即將到期');
+  it('shows only expiresToday section when others empty', () => {
+    const text = formatExpiryAlert({
+      expired: [],
+      expiresToday: [
+        { quantity: 2, unit: '包', expiryDate: new Date('2026-04-19'), item: { name: '鹽' } },
+      ],
+      expiresInWeek: [],
+    });
+    expect(text).toContain('今日到期');
     expect(text).not.toContain('已過期');
+    expect(text).not.toContain('一週內到期');
+  });
+
+  it('shows only expiresInWeek section when others empty', () => {
+    const text = formatExpiryAlert({
+      expired: [],
+      expiresToday: [],
+      expiresInWeek: [
+        { quantity: 1, unit: 'kg', expiryDate: new Date('2026-04-24'), item: { name: '麵粉' } },
+      ],
+    });
+    expect(text).toContain('一週內到期');
+    expect(text).not.toContain('已過期');
+    expect(text).not.toContain('今日到期');
   });
 
   it('renders null expiryDate as 未知日期', () => {
-    const approaching = [{ quantity: 1, unit: 'kg', expiryDate: null, item: { name: '糖' } }];
-    const text = formatExpiryAlert(approaching, []);
+    const text = formatExpiryAlert({
+      expired: [],
+      expiresToday: [{ quantity: 1, unit: 'kg', expiryDate: null, item: { name: '糖' } }],
+      expiresInWeek: [],
+    });
     expect(text).toContain('未知日期');
   });
 
   it('includes purchase list prompt at the bottom', () => {
-    const approaching = [
-      { quantity: 1, unit: 'kg', expiryDate: new Date('2026-04-20'), item: { name: '麵粉' } },
-    ];
-    const text = formatExpiryAlert(approaching, []);
+    const text = formatExpiryAlert({
+      expired: [],
+      expiresToday: [],
+      expiresInWeek: [
+        { quantity: 1, unit: 'kg', expiryDate: new Date('2026-04-22'), item: { name: '麵粉' } },
+      ],
+    });
     expect(text).toContain('採購清單');
   });
 });

@@ -168,10 +168,23 @@ export function formatDailyConfirm(estimates: DailyEstimateEntry[]): string {
   return lines.join('\n');
 }
 
+export interface ExpiryAlertGroups {
+  expired: BatchForAlert[];
+  expiresToday: BatchForAlert[];
+  expiresInWeek: BatchForAlert[];
+}
+
 /**
- * Build the expiry alert push message.
+ * Build the expiry alert push message with three categories:
+ *   🚨 已過期          — expiryDate < today
+ *   ⚠️ 今日到期        — expiryDate = today
+ *   📅 一週內到期      — tomorrow ≤ expiryDate ≤ today+7
  */
-export function formatExpiryAlert(approaching: BatchForAlert[], expired: BatchForAlert[]): string {
+export function formatExpiryAlert({
+  expired,
+  expiresToday,
+  expiresInWeek,
+}: ExpiryAlertGroups): string {
   const lines: string[] = ['⚠️ 到期提醒', '─────────────────'];
 
   if (expired.length > 0) {
@@ -183,9 +196,18 @@ export function formatExpiryAlert(approaching: BatchForAlert[], expired: BatchFo
     lines.push('');
   }
 
-  if (approaching.length > 0) {
-    lines.push('📅 即將到期');
-    for (const b of approaching) {
+  if (expiresToday.length > 0) {
+    lines.push('⚠️ 今日到期');
+    for (const b of expiresToday) {
+      const dateStr = b.expiryDate ? formatDate(b.expiryDate) : '未知日期';
+      lines.push(`• ${b.item.name}：${b.quantity}${b.unit}（${dateStr}）`);
+    }
+    lines.push('');
+  }
+
+  if (expiresInWeek.length > 0) {
+    lines.push('📅 一週內到期');
+    for (const b of expiresInWeek) {
       const dateStr = b.expiryDate ? formatDate(b.expiryDate) : '未知日期';
       lines.push(`• ${b.item.name}：${b.quantity}${b.unit}（${dateStr} 到期）`);
     }

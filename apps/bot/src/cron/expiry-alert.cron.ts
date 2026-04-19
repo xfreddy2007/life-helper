@@ -1,57 +1,46 @@
 import cron from 'node-cron';
 import type { messagingApi } from '@line/bot-sdk';
-import {
-  getApproachingBatches,
-  getExpiredBatches,
-  markBatchesAlertSent,
-} from '@life-helper/database/repositories';
+import { getExpiryAlertBatches } from '@life-helper/database/repositories';
 import { formatExpiryAlert } from '../lib/format.js';
 import { logger } from '../lib/logger.js';
 
 /**
- * Number of days ahead to consider a batch "approaching expiry".
- * Matches the Category.defaultExpiryAlertDays default in the schema.
- */
-const ALERT_WINDOW_DAYS = 7;
-
-/**
- * Runs every day at 08:00 Asia/Taipei.
+ * Runs on the configured schedule (default 08:00 Asia/Taipei daily).
  *
- * Checks for:
- * - Batches expiring within ALERT_WINDOW_DAYS days (not yet alerted)
- * - Batches already past their expiry date (not yet alerted)
+ * Fetches all batches with an expiry date and groups them into:
+ *   - Expired       (expiryDate < today)
+ *   - Expires today (expiryDate = today)
+ *   - Expires within the next 7 days
  *
- * Sends a single push message if any are found, then marks them as alerted
- * so they won't trigger again.
+ * No deduplication — every run reflects the current state of all batches.
+ * A push message is sent whenever any category is non-empty.
  */
 export function scheduleExpiryAlertCron(
   lineClient: messagingApi.MessagingApiClient,
   groupId: string,
+  expression = '0 8 * * *',
 ): cron.ScheduledTask {
   return cron.schedule(
-    '0 8 * * *',
+    expression,
     async () => {
       logger.info('Running expiry alert cron');
       try {
-        const [approaching, expired] = await Promise.all([
-          getApproachingBatches(ALERT_WINDOW_DAYS),
-          getExpiredBatches(),
-        ]);
+        const { expired, expiresToday, expiresInWeek } = await getExpiryAlertBatches();
 
-        if (approaching.length === 0 && expired.length === 0) {
+        if (expired.length === 0 && expiresToday.length === 0 && expiresInWeek.length === 0) {
           logger.info('No expiry alerts to send');
           return;
         }
 
-        const message = formatExpiryAlert(approaching, expired);
+        const message = formatExpiryAlert({ expired, expiresToday, expiresInWeek });
         await lineClient.pushMessage({ to: groupId, messages: [{ type: 'text', text: message }] });
 
-        // Prevent duplicate alerts
-        const allIds = [...approaching, ...expired].map((b) => b.id);
-        await markBatchesAlertSent(allIds);
-
         logger.info(
-          { approaching: approaching.length, expired: expired.length },
+          {
+            expired: expired.length,
+            expiresToday: expiresToday.length,
+            expiresInWeek: expiresInWeek.length,
+          },
           'Expiry alert sent',
         );
       } catch (err) {

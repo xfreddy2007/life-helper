@@ -13,9 +13,7 @@ import { lineSignatureMiddleware } from './middleware/line-signature.js';
 import { NluService } from './services/nlu/nlu.service.js';
 import { VisionService } from './services/vision.service.js';
 import { createWebhookRouter } from './routes/webhook.js';
-import { scheduleWeeklyPurchaseReminder } from './cron/weekly-purchase.cron.js';
-import { scheduleDailyConfirmCrons } from './cron/daily-confirm.cron.js';
-import { scheduleExpiryAlertCron } from './cron/expiry-alert.cron.js';
+import { cronManager } from './cron/cron-manager.js';
 
 const app = express();
 
@@ -82,10 +80,8 @@ const server = createServer(app);
 server.listen(env.PORT, () => {
   logger.info({ port: env.PORT, nodeEnv: env.NODE_ENV }, 'Bot server started');
 
-  // Start cron jobs after server is up
-  scheduleWeeklyPurchaseReminder(lineClient, env.LINE_GROUP_ID);
-  scheduleDailyConfirmCrons(lineClient, env.LINE_GROUP_ID);
-  scheduleExpiryAlertCron(lineClient, env.LINE_GROUP_ID);
+  // Start cron jobs after server is up (reads schedule from Redis config)
+  void cronManager.init(lineClient, env.LINE_GROUP_ID);
 });
 
 // ── Graceful shutdown ──────────────────────────────────────

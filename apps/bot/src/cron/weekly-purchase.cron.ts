@@ -12,11 +12,10 @@ import { logger } from '../lib/logger.js';
 export function scheduleWeeklyPurchaseReminder(
   lineClient: messagingApi.MessagingApiClient,
   groupId: string,
+  expression = '0 10 * * 0',
 ): cron.ScheduledTask {
-  // Cron: second minute hour day month weekday
-  // "0 10 * * 0" = every Sunday at 10:00 server time
   const task = cron.schedule(
-    '0 10 * * 0',
+    expression,
     async () => {
       logger.info('Running weekly purchase reminder cron');
 
@@ -51,6 +50,6 @@ export function scheduleWeeklyPurchaseReminder(
     { timezone: 'Asia/Taipei' },
   );
 
-  logger.info('Weekly purchase reminder cron scheduled (Sun 10:00 Asia/Taipei)');
+  logger.info({ expression }, 'Weekly purchase reminder cron scheduled (Asia/Taipei)');
   return task;
 }

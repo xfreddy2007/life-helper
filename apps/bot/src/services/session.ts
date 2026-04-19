@@ -8,6 +8,7 @@ export type ConversationFlow =
   | 'RESTOCK_EXPIRY'
   | 'PARTIAL_RESET_CONFIRM'
   | 'REVERT_SELECT'
+  | 'PURGE_EXPIRED'
   | 'SESSION_INTERRUPT';
 
 export interface ConversationState {

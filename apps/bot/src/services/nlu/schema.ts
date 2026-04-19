@@ -12,6 +12,7 @@ export const IntentSchema = z.enum([
   'CONFIRM_NO',
   'SET_CONFIG',
   'REVERT_OPERATION',
+  'PURGE_EXPIRED',
   'UNKNOWN',
 ]);
 

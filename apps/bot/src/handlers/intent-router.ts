@@ -20,6 +20,7 @@ import { handleReceiptConfirmation } from './receipt-import.handler.js';
 import { handleRestockExpiryResponse } from './restock.handler.js';
 import { handleRevertOperation, handleRevertSelect } from './revert.handler.js';
 import { handleSetConfig } from './set-config.handler.js';
+import { handlePurgeExpired, handlePurgeExpiredFlow } from './purge-expired.handler.js';
 import { clearSession, setSession } from '../services/session.js';
 import { logger } from '../lib/logger.js';
 
@@ -51,6 +52,7 @@ const INTENT_LABELS: Partial<Record<Intent, string>> = {
   REVERT_OPERATION: '撤銷操作',
   RECORD_CONSUMPTION: '記錄消耗',
   SET_CONFIG: '排程設定',
+  PURGE_EXPIRED: '清理過期品',
 };
 
 // Human-readable label for each active flow, used in conflict messages.
@@ -62,6 +64,7 @@ const FLOW_LABELS: Partial<Record<ConversationFlow, string>> = {
   RESTOCK_EXPIRY: '補充庫存',
   REVERT_SELECT: '撤銷操作',
   PARTIAL_RESET_CONFIRM: '部分庫存重置確認',
+  PURGE_EXPIRED: '清理過期品',
 };
 
 // Returns true for (flow, intent) pairs that are continuations of the same flow —
@@ -213,6 +216,11 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
     return [{ type: 'text', text: '請傳「確認」繼續重置，或傳「取消」放棄。' }];
   }
 
+  // Purge expired items flow (step 0: selection, step 1: confirmation)
+  if (session?.flow === 'PURGE_EXPIRED') {
+    return handlePurgeExpiredFlow(nluResult, session, sourceId);
+  }
+
   // ── Top-level intent dispatch ────────────────────────────
   switch (nluResult.intent) {
     case 'QUERY_INVENTORY':
@@ -245,6 +253,9 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
 
     case 'SET_CONFIG':
       return handleSetConfig(nluResult);
+
+    case 'PURGE_EXPIRED':
+      return handlePurgeExpired(sourceId);
 
     case 'UNKNOWN':
     default:

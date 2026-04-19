@@ -53,17 +53,35 @@ export interface PartialResetReversal {
   }>;
 }
 
+export interface PurgeExpiredReversal {
+  type: 'PURGE_EXPIRED';
+  items: Array<{
+    itemId: string;
+    itemName: string;
+    purgedQty: number; // in item's primary unit
+    unit: string; // item's primary unit
+    steps: Array<{
+      batchId: string;
+      deducted: number;
+      unit: string; // batch unit
+      expiryDate: string | null; // ISO string
+      wasDeleted: boolean;
+    }>;
+  }>;
+}
+
 export type ReversalData =
   | RestockReversal
   | ConsumeReversal
   | ResetItemReversal
-  | PartialResetReversal;
+  | PartialResetReversal
+  | PurgeExpiredReversal;
 
 // ── Repository functions ──────────────────────────────────────
 
 export async function createOperationLog(
   sourceId: string,
-  type: 'RESTOCK' | 'CONSUME' | 'RESET_ITEM' | 'PARTIAL_RESET',
+  type: 'RESTOCK' | 'CONSUME' | 'RESET_ITEM' | 'PARTIAL_RESET' | 'PURGE_EXPIRED',
   description: string,
   reversalData: ReversalData,
 ): Promise<void> {
@@ -97,7 +115,8 @@ export async function reverseOperation(log: OperationLog): Promise<string> {
   if (data.type === 'RESTOCK') return reverseRestock(log.id, data);
   if (data.type === 'CONSUME') return reverseConsume(log.id, data);
   if (data.type === 'RESET_ITEM') return reverseResetItem(log.id, data);
-  return reversePartialReset(log.id, data);
+  if (data.type === 'PARTIAL_RESET') return reversePartialReset(log.id, data);
+  return reversePurgeExpired(log.id, data);
 }
 
 // ── Internal reversal helpers ─────────────────────────────────
@@ -229,4 +248,40 @@ async function reversePartialReset(logId: string, data: PartialResetReversal): P
 
   const names = items.map((e) => e.itemName).join('、');
   return `✅ 已撤銷部分重置：${names} 已還原`;
+}
+
+async function reversePurgeExpired(logId: string, data: PurgeExpiredReversal): Promise<string> {
+  const { items } = data;
+
+  await prisma.$transaction(async (tx) => {
+    for (const entry of items) {
+      for (const step of entry.steps) {
+        const existing = await tx.expiryBatch.findUnique({ where: { id: step.batchId } });
+        if (existing) {
+          await tx.expiryBatch.update({
+            where: { id: step.batchId },
+            data: { quantity: { increment: step.deducted } },
+          });
+        } else {
+          // Batch was fully purged (deleted) — recreate it
+          await tx.expiryBatch.create({
+            data: {
+              itemId: entry.itemId,
+              quantity: step.deducted,
+              unit: step.unit,
+              expiryDate: step.expiryDate ? new Date(step.expiryDate) : null,
+            },
+          });
+        }
+      }
+      await tx.item.update({
+        where: { id: entry.itemId },
+        data: { totalQuantity: { increment: entry.purgedQty } },
+      });
+    }
+    await tx.operationLog.update({ where: { id: logId }, data: { reversed: true } });
+  });
+
+  const names = items.map((e) => e.itemName).join('、');
+  return `✅ 已撤銷清理：${names} 庫存已還原`;
 }

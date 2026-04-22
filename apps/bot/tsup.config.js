@@ -3,7 +3,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: ['src/main.ts'],
   bundle: true,
-  splitting: true,
+  splitting: false,
   sourcemap: true,
   clean: true,
   outDir: 'dist',
@@ -16,4 +16,9 @@ export default defineConfig({
   // Keep Prisma packages as runtime requires — they rely on native query engine
   // binaries that cannot be inlined into a JS bundle.
   external: ['@prisma/client', '.prisma/client'],
+  // Provide a require() shim so bundled CJS packages (e.g. dotenv) can call
+  // require('fs') and other Node built-ins inside an ESM output file.
+  banner: {
+    js: `import { createRequire } from 'module';\nconst require = createRequire(import.meta.url);`,
+  },
 });

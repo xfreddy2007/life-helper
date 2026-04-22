@@ -31,10 +31,13 @@ type TaskSlot = {
 class CronManager {
   private tasks: TaskSlot = {};
   private lineClient: messagingApi.MessagingApiClient | null = null;
-  private groupId: string | null = null;
+  private groupId: string | undefined = undefined;
 
   /** Call once at startup — reads config from Redis and creates all tasks. */
-  async init(lineClient: messagingApi.MessagingApiClient, groupId: string): Promise<void> {
+  async init(
+    lineClient: messagingApi.MessagingApiClient,
+    groupId: string | undefined,
+  ): Promise<void> {
     this.lineClient = lineClient;
     this.groupId = groupId;
 
@@ -56,7 +59,7 @@ class CronManager {
 
   /** Hot-reload a single cron after its config changes in Redis. */
   async reschedule(key: CronKey): Promise<void> {
-    if (!this.lineClient || !this.groupId) {
+    if (!this.lineClient) {
       logger.warn('CronManager.reschedule called before init');
       return;
     }

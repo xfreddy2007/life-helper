@@ -7,16 +7,17 @@ import { fileURLToPath } from 'url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const botRoot = resolve(__dirname, '../../');
 
-// Load .env first, then .env.local (local values override)
-dotEnvConfig({ path: resolve(botRoot, '.env') });
-dotEnvConfig({ path: resolve(botRoot, '.env.local'), override: true });
+// In production, Fly.io injects secrets directly — dotenv is a no-op.
+// In development/test, load from the environment-specific file.
+const envFile = process.env.NODE_ENV === 'production' ? '.env.production' : '.env.local';
+dotEnvConfig({ path: resolve(botRoot, envFile) });
 
 export const env = createEnv({
   server: {
     // LINE Bot
     LINE_CHANNEL_ACCESS_TOKEN: z.string().min(1),
     LINE_CHANNEL_SECRET: z.string().min(1),
-    LINE_GROUP_ID: z.string().min(1),
+    LINE_GROUP_ID: z.string().min(1).optional(),
 
     // Anthropic Claude API
     ANTHROPIC_API_KEY: z.string().startsWith('sk-'),

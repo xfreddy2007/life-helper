@@ -41,4 +41,4 @@ COPY --from=builder /app/packages/database/prisma ./packages/database/prisma
 
 EXPOSE 3000
 
-CMD ["node", "--enable-source-maps", "dist/main.cjs"]
+CMD ["node", "--enable-source-maps", "dist/main.js"]

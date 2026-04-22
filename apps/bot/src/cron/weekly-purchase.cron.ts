@@ -4,6 +4,7 @@ import { listItems, createPurchaseList } from '@life-helper/database/repositorie
 import { calculatePurchaseList } from '../services/purchase-advisor.service.js';
 import { formatPurchaseList } from '../lib/format.js';
 import { logger } from '../lib/logger.js';
+import { getRegisteredUsers } from '../services/user-registry.service.js';
 
 /**
  * Runs every Sunday at 10:00 Asia/Taipei.
@@ -36,13 +37,18 @@ export function scheduleWeeklyPurchaseReminder(
         }
 
         const message = formatPurchaseList(recommendations);
+        const userIds = await getRegisteredUsers();
+        const recipients = [groupId, ...userIds];
+        await Promise.all(
+          recipients.map((to) =>
+            lineClient.pushMessage({ to, messages: [{ type: 'text', text: message }] }),
+          ),
+        );
 
-        await lineClient.pushMessage({
-          to: groupId,
-          messages: [{ type: 'text', text: message }],
-        });
-
-        logger.info({ itemCount: recommendations.length }, 'Weekly purchase reminder sent');
+        logger.info(
+          { itemCount: recommendations.length, recipientCount: recipients.length },
+          'Weekly purchase reminder sent',
+        );
       } catch (err) {
         logger.error({ err }, 'Weekly purchase reminder cron failed');
       }

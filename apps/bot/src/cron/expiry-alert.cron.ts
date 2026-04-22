@@ -3,6 +3,7 @@ import type { messagingApi } from '@line/bot-sdk';
 import { getExpiryAlertBatches } from '@life-helper/database/repositories';
 import { formatExpiryAlert } from '../lib/format.js';
 import { logger } from '../lib/logger.js';
+import { getRegisteredUsers } from '../services/user-registry.service.js';
 
 /**
  * Runs on the configured schedule (default 08:00 Asia/Taipei daily).
@@ -33,13 +34,20 @@ export function scheduleExpiryAlertCron(
         }
 
         const message = formatExpiryAlert({ expired, expiresToday, expiresInWeek });
-        await lineClient.pushMessage({ to: groupId, messages: [{ type: 'text', text: message }] });
+        const userIds = await getRegisteredUsers();
+        const recipients = [groupId, ...userIds];
+        await Promise.all(
+          recipients.map((to) =>
+            lineClient.pushMessage({ to, messages: [{ type: 'text', text: message }] }),
+          ),
+        );
 
         logger.info(
           {
             expired: expired.length,
             expiresToday: expiresToday.length,
             expiresInWeek: expiresInWeek.length,
+            recipientCount: recipients.length,
           },
           'Expiry alert sent',
         );

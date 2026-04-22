@@ -12,6 +12,7 @@ import {
 } from '../services/daily-confirm.service.js';
 import { formatDailyConfirm } from '../lib/format.js';
 import { logger } from '../lib/logger.js';
+import { getRegisteredUsers } from '../services/user-registry.service.js';
 
 /**
  * Schedules two daily crons:
@@ -45,9 +46,18 @@ export function scheduleDailyConfirmCrons(
         await setDailyConfirmSent(today);
 
         const message = formatDailyConfirm(estimates);
-        await lineClient.pushMessage({ to: groupId, messages: [{ type: 'text', text: message }] });
+        const userIds = await getRegisteredUsers();
+        const recipients = [groupId, ...userIds];
+        await Promise.all(
+          recipients.map((to) =>
+            lineClient.pushMessage({ to, messages: [{ type: 'text', text: message }] }),
+          ),
+        );
 
-        logger.info({ itemCount: estimates.length }, 'Daily confirm push sent');
+        logger.info(
+          { itemCount: estimates.length, recipientCount: recipients.length },
+          'Daily confirm push sent',
+        );
       } catch (err) {
         logger.error({ err }, 'Daily confirm push cron failed');
       }
@@ -87,8 +97,17 @@ export function scheduleDailyConfirmCrons(
           message += `\n\n⚠️ 已連續 ${streak} 天未確認，建議重新盤點庫存！\n傳「開始盤點」重新確認庫存`;
         }
 
-        await lineClient.pushMessage({ to: groupId, messages: [{ type: 'text', text: message }] });
-        logger.info({ streak, estimatedCount: results.length }, 'Auto-estimate applied');
+        const userIds = await getRegisteredUsers();
+        const recipients = [groupId, ...userIds];
+        await Promise.all(
+          recipients.map((to) =>
+            lineClient.pushMessage({ to, messages: [{ type: 'text', text: message }] }),
+          ),
+        );
+        logger.info(
+          { streak, estimatedCount: results.length, recipientCount: recipients.length },
+          'Auto-estimate applied',
+        );
       } catch (err) {
         logger.error({ err }, 'Auto-estimate cron failed');
       }

@@ -31,7 +31,16 @@ export interface RouterContext {
   sourceId: string;
 }
 
-export type ReplyMessage = { type: 'text'; text: string };
+export type QuickReplyItem = {
+  type: 'action';
+  action: { type: 'message'; label: string; text: string };
+};
+
+export type ReplyMessage = {
+  type: 'text';
+  text: string;
+  quickReply?: { items: QuickReplyItem[] };
+};
 
 // Intents that are always allowed through regardless of active session.
 // Everything else triggers the conflict guard when a session is running.
@@ -41,6 +50,7 @@ const SESSION_PASSTHROUGH_INTENTS = new Set<Intent>([
   'CONFIRM_NO',
   'QUERY_INVENTORY', // read-only queries are harmless mid-session
   'QUERY_PURCHASE_LIST',
+  'SHOW_FEATURES', // informational — safe to show at any time
 ]);
 
 // Human-readable label for each intent that can be pending in SESSION_INTERRUPT.
@@ -75,6 +85,26 @@ function isSameContinuation(flow: ConversationFlow, intent: Intent): boolean {
   // RESTOCK_EXPIRY routes RESTOCK back through handleRestockExpiryResponse
   if (flow === 'RESTOCK_EXPIRY' && intent === 'RESTOCK') return true;
   return false;
+}
+
+const FEATURES_QUICK_REPLY_ITEMS: QuickReplyItem[] = [
+  { type: 'action', action: { type: 'message', label: '庫存盤點', text: '開始盤點' } },
+  { type: 'action', action: { type: 'message', label: '查詢庫存', text: '查詢庫存' } },
+  { type: 'action', action: { type: 'message', label: '記錄消耗', text: '記錄消耗' } },
+  { type: 'action', action: { type: 'message', label: '補充庫存', text: '補充庫存' } },
+  { type: 'action', action: { type: 'message', label: '採購清單', text: '採購清單' } },
+  { type: 'action', action: { type: 'message', label: '清理過期品', text: '清理過期品' } },
+  { type: 'action', action: { type: 'message', label: '重置庫存', text: '重置庫存' } },
+  { type: 'action', action: { type: 'message', label: '撤銷操作', text: '撤銷操作' } },
+  { type: 'action', action: { type: 'message', label: '設定排程', text: '設定排程' } },
+];
+
+export function buildFeaturesMenu(): ReplyMessage {
+  return {
+    type: 'text',
+    text: '👋 我是居家生活小幫手！以下是我能做的事，點選按鈕快速開始，或直接用文字告訴我 😊',
+    quickReply: { items: FEATURES_QUICK_REPLY_ITEMS },
+  };
 }
 
 /**
@@ -141,6 +171,11 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
         text: '請傳「確認」放棄目前操作，或傳「取消」繼續目前操作。',
       },
     ];
+  }
+
+  // ── SHOW_FEATURES always returns the menu, regardless of active session ──
+  if (nluResult.intent === 'SHOW_FEATURES') {
+    return [buildFeaturesMenu()];
   }
 
   // ── Active multi-step flows ──────────────────────────────

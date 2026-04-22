@@ -111,6 +111,32 @@ describe('routeIntent', () => {
     expect(replies[0]?.text).toContain('查詢庫存');
   });
 
+  it('SHOW_FEATURES returns features menu with quick reply buttons', async () => {
+    const ctx = makeCtx({
+      nluResult: { intent: 'SHOW_FEATURES', entities: {}, rawText: '有什麼功能', confidence: 0.95 },
+    });
+    const replies = await routeIntent(ctx);
+    expect(replies[0]?.type).toBe('text');
+    expect(replies[0]?.quickReply?.items.length).toBeGreaterThan(0);
+    const labels = replies[0]?.quickReply?.items.map((i) => i.action.label) ?? [];
+    expect(labels).toContain('庫存盤點');
+    expect(labels).toContain('查詢庫存');
+    expect(labels).toContain('設定排程');
+  });
+
+  it('SHOW_FEATURES bypasses session conflict guard', async () => {
+    const ctx = makeCtx({
+      session: { flow: 'RESTOCK_EXPIRY', step: 1, data: {}, expiresAt: Date.now() + 99999 },
+      nluResult: { intent: 'SHOW_FEATURES', entities: {}, rawText: '有什麼功能', confidence: 0.9 },
+    });
+    const replies = await routeIntent(ctx);
+    expect(replies[0]?.quickReply).toBeDefined();
+    expect(mockSetSession).not.toHaveBeenCalledWith(
+      'group-test',
+      expect.objectContaining({ flow: 'SESSION_INTERRUPT' }),
+    );
+  });
+
   it('CONFIRM_YES with no active session returns no-op message', async () => {
     const ctx = makeCtx({
       nluResult: { intent: 'CONFIRM_YES', entities: {}, rawText: '確認', confidence: 0.99 },

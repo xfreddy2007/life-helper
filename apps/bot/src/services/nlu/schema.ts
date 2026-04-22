@@ -13,6 +13,7 @@ export const IntentSchema = z.enum([
   'SET_CONFIG',
   'REVERT_OPERATION',
   'PURGE_EXPIRED',
+  'SHOW_FEATURES',
   'UNKNOWN',
 ]);
 

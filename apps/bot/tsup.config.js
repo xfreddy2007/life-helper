@@ -7,7 +7,7 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   outDir: 'dist',
-  format: 'cjs',
+  format: 'esm',
   // Target Node 22 so esbuild emits native class fields without transformation.
   // This prevents a class-field lowering bug when @prisma/client is encountered.
   target: 'node22',

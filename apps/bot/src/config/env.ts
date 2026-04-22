@@ -17,7 +17,7 @@ export const env = createEnv({
     // LINE Bot
     LINE_CHANNEL_ACCESS_TOKEN: z.string().min(1),
     LINE_CHANNEL_SECRET: z.string().min(1),
-    LINE_GROUP_ID: z.string().min(1),
+    LINE_GROUP_ID: z.string().min(1).optional(),
 
     // Anthropic Claude API
     ANTHROPIC_API_KEY: z.string().startsWith('sk-'),

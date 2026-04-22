@@ -12,7 +12,7 @@ import { getRegisteredUsers } from '../services/user-registry.service.js';
  */
 export function scheduleWeeklyPurchaseReminder(
   lineClient: messagingApi.MessagingApiClient,
-  groupId: string,
+  groupId: string | undefined,
   expression = '0 10 * * 0',
 ): cron.ScheduledTask {
   const task = cron.schedule(
@@ -38,7 +38,7 @@ export function scheduleWeeklyPurchaseReminder(
 
         const message = formatPurchaseList(recommendations);
         const userIds = await getRegisteredUsers();
-        const recipients = [groupId, ...userIds];
+        const recipients = [...(groupId ? [groupId] : []), ...userIds];
         await Promise.all(
           recipients.map((to) =>
             lineClient.pushMessage({ to, messages: [{ type: 'text', text: message }] }),

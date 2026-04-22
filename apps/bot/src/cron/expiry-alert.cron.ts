@@ -18,7 +18,7 @@ import { getRegisteredUsers } from '../services/user-registry.service.js';
  */
 export function scheduleExpiryAlertCron(
   lineClient: messagingApi.MessagingApiClient,
-  groupId: string,
+  groupId: string | undefined,
   expression = '0 8 * * *',
 ): cron.ScheduledTask {
   return cron.schedule(
@@ -35,7 +35,7 @@ export function scheduleExpiryAlertCron(
 
         const message = formatExpiryAlert({ expired, expiresToday, expiresInWeek });
         const userIds = await getRegisteredUsers();
-        const recipients = [groupId, ...userIds];
+        const recipients = [...(groupId ? [groupId] : []), ...userIds];
         await Promise.all(
           recipients.map((to) =>
             lineClient.pushMessage({ to, messages: [{ type: 'text', text: message }] }),

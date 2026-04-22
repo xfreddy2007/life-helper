@@ -25,7 +25,7 @@ import { getRegisteredUsers } from '../services/user-registry.service.js';
  */
 export function scheduleDailyConfirmCrons(
   lineClient: messagingApi.MessagingApiClient,
-  groupId: string,
+  groupId: string | undefined,
   pushExpression = '0 23 * * *',
 ): [cron.ScheduledTask, cron.ScheduledTask] {
   // ── Push — Send daily confirmation prompt ──────────────────
@@ -47,7 +47,7 @@ export function scheduleDailyConfirmCrons(
 
         const message = formatDailyConfirm(estimates);
         const userIds = await getRegisteredUsers();
-        const recipients = [groupId, ...userIds];
+        const recipients = [...(groupId ? [groupId] : []), ...userIds];
         await Promise.all(
           recipients.map((to) =>
             lineClient.pushMessage({ to, messages: [{ type: 'text', text: message }] }),
@@ -98,7 +98,7 @@ export function scheduleDailyConfirmCrons(
         }
 
         const userIds = await getRegisteredUsers();
-        const recipients = [groupId, ...userIds];
+        const recipients = [...(groupId ? [groupId] : []), ...userIds];
         await Promise.all(
           recipients.map((to) =>
             lineClient.pushMessage({ to, messages: [{ type: 'text', text: message }] }),

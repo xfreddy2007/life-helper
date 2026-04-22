@@ -23,6 +23,7 @@ vi.mock('@life-helper/database', () => ({
 vi.mock('@life-helper/database/repositories', () => ({
   findItemByName: vi.fn(),
   getRecentConsumptionLogs: vi.fn().mockResolvedValue([]),
+  createOperationLog: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../services/fifo.service.js', () => ({
@@ -144,13 +145,7 @@ describe('handleRecordConsumption', () => {
     expect(replies[0]!.text).toContain('確認');
   });
 
-  it('shows shortfall warning when stock insufficient', async () => {
-    const { planFifoDeduction } = await import('../services/fifo.service.js');
-    vi.mocked(planFifoDeduction).mockReturnValueOnce({
-      plan: [{ batchId: 'b1', deductQty: 10, remainingQty: 0 }],
-      totalDeducted: 10,
-      shortfall: 5,
-    });
+  it('warns when requested quantity exceeds available stock', async () => {
     mockFindItemByName.mockResolvedValue(mockItem as never);
     mockDetectAnomaly.mockReturnValue({
       isAnomaly: false,
@@ -160,7 +155,8 @@ describe('handleRecordConsumption', () => {
     });
     const nlu = makeNlu({ entities: { items: [{ name: '白米', quantity: 15, unit: 'kg' }] } });
     const replies = await handleRecordConsumption(nlu, 'group-1');
-    expect(replies[0]!.text).toContain('庫存不足');
+    expect(replies[0]!.text).toContain('目前庫存只有');
+    expect(replies[0]!.text).toContain('請確認數量');
   });
 });
 

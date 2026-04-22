@@ -133,6 +133,20 @@ describe('NluService', () => {
     expect(() => NluResultSchema.parse(invalid)).toThrow();
   });
 
+  it('parses SHOW_FEATURES intent', async () => {
+    const response = {
+      intent: 'SHOW_FEATURES',
+      entities: {},
+      rawText: '有什麼功能',
+      confidence: 0.95,
+    };
+    mockCreate.mockResolvedValueOnce(makeTextResponse(JSON.stringify(response)));
+
+    const result = await service.parse('有什麼功能');
+    expect(result.intent).toBe('SHOW_FEATURES');
+    expect(result.confidence).toBeGreaterThan(0.8);
+  });
+
   it('NluResultSchema rejects confidence out of range', () => {
     const invalid = {
       intent: 'UNKNOWN',

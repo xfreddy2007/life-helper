@@ -41,18 +41,35 @@ export async function findItemById(id: string): Promise<ItemWithBatchesAndCatego
   });
 }
 
+/** Returns the earliest non-null expiry date timestamp for a set of batches, or null if none. */
+function earliestExpiry(batches: { expiryDate: Date | null }[]): number | null {
+  const dates = batches.map((b) => b.expiryDate?.getTime() ?? null).filter((t) => t !== null);
+  return dates.length > 0 ? Math.min(...(dates as number[])) : null;
+}
+
 /**
  * List all items, optionally filtered by category name.
  */
 export async function listItems(categoryName?: string): Promise<ItemWithBatchesAndCategory[]> {
-  const where: Prisma.ItemWhereInput = categoryName
-    ? { category: { name: { equals: categoryName, mode: 'insensitive' } } }
-    : {};
+  const where: Prisma.ItemWhereInput = {
+    totalQuantity: { gt: 0 },
+    ...(categoryName ? { category: { name: { equals: categoryName, mode: 'insensitive' } } } : {}),
+  };
 
-  return prisma.item.findMany({
+  const items = await prisma.item.findMany({
     where,
     include: { expiryBatches: { orderBy: { expiryDate: 'asc' } }, category: true },
-    orderBy: [{ category: { name: 'asc' } }, { name: 'asc' }],
+    orderBy: { name: 'asc' },
+  });
+
+  // Sort by earliest expiry date; items with no dated batches sort last
+  return items.sort((a, b) => {
+    const aMin = earliestExpiry(a.expiryBatches);
+    const bMin = earliestExpiry(b.expiryBatches);
+    if (aMin === null && bMin === null) return 0;
+    if (aMin === null) return 1;
+    if (bMin === null) return -1;
+    return aMin - bMin;
   });
 }
 
@@ -74,28 +91,46 @@ export async function createItem(input: CreateItemInput): Promise<ItemWithBatche
 }
 
 /**
- * Add a stock batch to an item and update totalQuantity atomically.
+ * Add stock to an item.
+ * If a batch with the same unit and expiryDate already exists it is merged
+ * (quantity incremented) rather than creating a duplicate row.
  */
 export async function addStock(
   itemId: string,
   input: AddStockInput,
 ): Promise<ItemWithBatchesAndCategory> {
-  const [, item] = await prisma.$transaction([
-    prisma.expiryBatch.create({
-      data: {
+  return prisma.$transaction(async (tx) => {
+    // Look for an existing batch with the same unit + expiryDate
+    const existing = await tx.expiryBatch.findFirst({
+      where: {
         itemId,
-        quantity: input.quantity,
         unit: input.unit,
-        expiryDate: input.expiryDate,
+        expiryDate: input.expiryDate ?? null,
       },
-    }),
-    prisma.item.update({
+    });
+
+    if (existing) {
+      await tx.expiryBatch.update({
+        where: { id: existing.id },
+        data: { quantity: { increment: input.quantity } },
+      });
+    } else {
+      await tx.expiryBatch.create({
+        data: {
+          itemId,
+          quantity: input.quantity,
+          unit: input.unit,
+          expiryDate: input.expiryDate,
+        },
+      });
+    }
+
+    return tx.item.update({
       where: { id: itemId },
       data: { totalQuantity: { increment: input.quantity } },
       include: { expiryBatches: { orderBy: { expiryDate: 'asc' } }, category: true },
-    }),
-  ]);
-  return item;
+    });
+  });
 }
 
 /**
@@ -120,6 +155,18 @@ export async function resetQuantity(
       include: { expiryBatches: { orderBy: { expiryDate: 'asc' } }, category: true },
     });
   });
+}
+
+/**
+ * Clear all stock across every item:
+ * - Deletes all ExpiryBatch rows
+ * - Sets every item's totalQuantity back to 0
+ */
+export async function resetAllInventory(): Promise<void> {
+  await prisma.$transaction([
+    prisma.expiryBatch.deleteMany(),
+    prisma.item.updateMany({ data: { totalQuantity: 0 } }),
+  ]);
 }
 
 /**

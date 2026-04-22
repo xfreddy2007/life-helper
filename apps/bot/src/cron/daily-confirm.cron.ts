@@ -16,7 +16,7 @@ import { logger } from '../lib/logger.js';
 /**
  * Schedules two daily crons:
  *
- * 23:00 Asia/Taipei — Push estimated consumption for user confirmation.
+ * pushExpression (default "0 23 * * *") — Push estimated consumption for user confirmation.
  * 07:00 Asia/Taipei — If yesterday's confirmation was never received,
  *                     auto-apply daily estimates and escalate after 3 days.
  *
@@ -25,10 +25,11 @@ import { logger } from '../lib/logger.js';
 export function scheduleDailyConfirmCrons(
   lineClient: messagingApi.MessagingApiClient,
   groupId: string,
+  pushExpression = '0 23 * * *',
 ): [cron.ScheduledTask, cron.ScheduledTask] {
-  // ── 23:00 — Push daily confirmation prompt ─────────────────
+  // ── Push — Send daily confirmation prompt ──────────────────
   const pushTask = cron.schedule(
-    '0 23 * * *',
+    pushExpression,
     async () => {
       logger.info('Running daily confirm push cron');
       try {
@@ -95,6 +96,6 @@ export function scheduleDailyConfirmCrons(
     { timezone: 'Asia/Taipei' },
   );
 
-  logger.info('Daily confirm crons scheduled (23:00 push, 07:00 auto-estimate, Asia/Taipei)');
+  logger.info({ pushExpression }, 'Daily confirm crons scheduled (Asia/Taipei)');
   return [pushTask, autoTask];
 }

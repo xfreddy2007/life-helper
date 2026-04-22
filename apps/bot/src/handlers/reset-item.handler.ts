@@ -1,8 +1,12 @@
-import { findItemByName, resetQuantity } from '@life-helper/database/repositories';
+import {
+  findItemByName,
+  resetQuantity,
+  createOperationLog,
+} from '@life-helper/database/repositories';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ReplyMessage } from './intent-router.js';
 
-export async function handleResetItem(nlu: NluResult): Promise<ReplyMessage[]> {
+export async function handleResetItem(nlu: NluResult, sourceId: string): Promise<ReplyMessage[]> {
   const entity = nlu.entities.items?.[0];
 
   if (!entity?.name) {
@@ -35,7 +39,23 @@ export async function handleResetItem(nlu: NluResult): Promise<ReplyMessage[]> {
     ];
   }
 
+  // Capture before-state for reversal
+  const previousBatches = item.expiryBatches.map((b) => ({
+    quantity: b.quantity,
+    unit: b.unit,
+    expiryDate: b.expiryDate?.toISOString() ?? null,
+  }));
+  const previousTotalQuantity = item.totalQuantity;
+
   await resetQuantity(item.id, quantity, unit);
+
+  await createOperationLog(sourceId, 'RESET_ITEM', `重置 ${name} → ${quantity}${unit}`, {
+    type: 'RESET_ITEM',
+    itemId: item.id,
+    itemName: name,
+    previousTotalQuantity,
+    previousBatches,
+  });
 
   return [
     {

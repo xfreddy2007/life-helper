@@ -1,7 +1,11 @@
-import * as Sentry from '@sentry/node';
+// instrument.ts must be the very first import so Sentry can patch express/http
+// before they are loaded by any other module.
+import './instrument.js';
+
 import express from 'express';
 import { createServer } from 'http';
 import { messagingApi } from '@line/bot-sdk';
+import * as Sentry from '@sentry/node';
 import { env } from './config/env.js';
 import { logger } from './lib/logger.js';
 import { closeRedis } from './lib/redis.js';
@@ -9,19 +13,7 @@ import { lineSignatureMiddleware } from './middleware/line-signature.js';
 import { NluService } from './services/nlu/nlu.service.js';
 import { VisionService } from './services/vision.service.js';
 import { createWebhookRouter } from './routes/webhook.js';
-import { scheduleWeeklyPurchaseReminder } from './cron/weekly-purchase.cron.js';
-import { scheduleDailyConfirmCrons } from './cron/daily-confirm.cron.js';
-import { scheduleExpiryAlertCron } from './cron/expiry-alert.cron.js';
-
-// ── Sentry — must initialise before any other imports use it ──
-if (env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: env.SENTRY_DSN,
-    environment: env.NODE_ENV,
-    tracesSampleRate: env.NODE_ENV === 'production' ? 0.1 : 0,
-  });
-  logger.info('Sentry initialised');
-}
+import { cronManager } from './cron/cron-manager.js';
 
 const app = express();
 
@@ -43,6 +35,8 @@ app.get('/health', (_req, res) => {
 // ── LINE Webhook ───────────────────────────────────────────
 // LINE sends JSON but signature validation requires the raw body.
 // Strategy: capture raw body for /webhook, then parse to JSON.
+// Note: middlewares registered via app.post(); router mounted via app.use()
+// so that Express strips the '/webhook' prefix and router.post('/') matches.
 app.post(
   '/webhook',
   // 1. Buffer the raw body for signature validation
@@ -58,7 +52,12 @@ app.post(
       next(err);
     }
   },
-  // 4. Webhook router
+);
+
+// 4. Mount the webhook router via app.use so Express strips '/webhook'
+//    and router.post('/') inside the router matches correctly.
+app.use(
+  '/webhook',
   createWebhookRouter(
     lineClient,
     lineBlobClient,
@@ -81,10 +80,8 @@ const server = createServer(app);
 server.listen(env.PORT, () => {
   logger.info({ port: env.PORT, nodeEnv: env.NODE_ENV }, 'Bot server started');
 
-  // Start cron jobs after server is up
-  scheduleWeeklyPurchaseReminder(lineClient, env.LINE_GROUP_ID);
-  scheduleDailyConfirmCrons(lineClient, env.LINE_GROUP_ID);
-  scheduleExpiryAlertCron(lineClient, env.LINE_GROUP_ID);
+  // Start cron jobs after server is up (reads schedule from Redis config)
+  void cronManager.init(lineClient, env.LINE_GROUP_ID);
 });
 
 // ── Graceful shutdown ──────────────────────────────────────

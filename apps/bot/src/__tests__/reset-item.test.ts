@@ -5,6 +5,7 @@ import type { NluResult } from '../services/nlu/schema.js';
 vi.mock('@life-helper/database/repositories', () => ({
   findItemByName: vi.fn(),
   resetQuantity: vi.fn().mockResolvedValue({}),
+  createOperationLog: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { findItemByName, resetQuantity } from '@life-helper/database/repositories';
@@ -42,20 +43,22 @@ function makeNlu(overrides: Partial<NluResult> = {}): NluResult {
 beforeEach(() => vi.clearAllMocks());
 
 describe('handleResetItem', () => {
+  const SRC = 'user-1';
+
   it('returns prompt when no entities', async () => {
-    const replies = await handleResetItem(makeNlu());
+    const replies = await handleResetItem(makeNlu(), SRC);
     expect(replies[0]!.text).toContain('重置的物品');
   });
 
   it('returns prompt when entity has no name', async () => {
     const nlu = makeNlu({ entities: { items: [{ name: '' }] } });
-    const replies = await handleResetItem(nlu);
+    const replies = await handleResetItem(nlu, SRC);
     expect(replies[0]!.text).toContain('重置的物品');
   });
 
   it('returns prompt for qty/unit when entity has name but missing quantity', async () => {
     const nlu = makeNlu({ entities: { items: [{ name: '白米' }] } });
-    const replies = await handleResetItem(nlu);
+    const replies = await handleResetItem(nlu, SRC);
     expect(replies[0]!.text).toContain('數量和單位');
     expect(replies[0]!.text).toContain('白米');
   });
@@ -63,7 +66,7 @@ describe('handleResetItem', () => {
   it('returns not-found message when item does not exist', async () => {
     mockFindItemByName.mockResolvedValue(null);
     const nlu = makeNlu({ entities: { items: [{ name: '豆腐', quantity: 2, unit: '盒' }] } });
-    const replies = await handleResetItem(nlu);
+    const replies = await handleResetItem(nlu, SRC);
     expect(replies[0]!.text).toContain('找不到');
     expect(replies[0]!.text).toContain('豆腐');
   });
@@ -71,7 +74,7 @@ describe('handleResetItem', () => {
   it('resets quantity when item found with valid qty/unit', async () => {
     mockFindItemByName.mockResolvedValue(mockItem as never);
     const nlu = makeNlu({ entities: { items: [{ name: '白米', quantity: 3, unit: 'kg' }] } });
-    const replies = await handleResetItem(nlu);
+    const replies = await handleResetItem(nlu, SRC);
     expect(mockResetQuantity).toHaveBeenCalledWith('item-1', 3, 'kg');
     expect(replies[0]!.text).toContain('白米');
     expect(replies[0]!.text).toContain('3kg');

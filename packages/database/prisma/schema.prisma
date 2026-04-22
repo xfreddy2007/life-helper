@@ -147,6 +147,21 @@ model ReceiptMapping {
 }
 
 // ──────────────────────────────────────
+// 操作記錄（支援撤銷）
+// ──────────────────────────────────────
+model OperationLog {
+  id           String   @id @default(cuid())
+  sourceId     String
+  type         String   // 'RESTOCK' | 'CONSUME'
+  description  String
+  reversalData Json
+  reversed     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  @@index([sourceId, createdAt(sort: Desc)])
+}
+
+// ──────────────────────────────────────
 // 對話狀態（僅用於複雜流程，主要狀態存 Redis）
 // ──────────────────────────────────────
 model ConversationSession {

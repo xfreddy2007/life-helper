@@ -10,6 +10,13 @@ vi.mock('@life-helper/database/repositories', () => ({
   getDefaultCategory: vi.fn().mockResolvedValue({ id: 'cat-1', name: '食材' }),
   findPendingItemsByItemIds: vi.fn().mockResolvedValue([]),
   updatePurchaseListItemStatus: vi.fn().mockResolvedValue({}),
+  createOperationLog: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock('../services/session.js', () => ({
+  newSession: vi.fn(() => ({ flow: 'RESTOCK_EXPIRY', step: 0, data: {}, expiresAt: 0 })),
+  setSession: vi.fn().mockResolvedValue(undefined),
+  clearSession: vi.fn().mockResolvedValue(undefined),
 }));
 
 import {
@@ -22,9 +29,11 @@ import {
 
 const mockFindItemByName = vi.mocked(findItemByName);
 const mockAddStock = vi.mocked(addStock);
-const mockFindOrCreateItem = vi.mocked(findOrCreateItem);
+vi.mocked(findOrCreateItem);
 const mockFindPendingItemsByItemIds = vi.mocked(findPendingItemsByItemIds);
 const mockUpdatePurchaseListItemStatus = vi.mocked(updatePurchaseListItemStatus);
+
+const SOURCE_ID = 'user-123';
 
 const mockItem = {
   id: 'item-1',
@@ -57,43 +66,39 @@ beforeEach(() => vi.clearAllMocks());
 
 describe('handleRestock', () => {
   it('returns prompt when no item entities provided', async () => {
-    const replies = await handleRestock(makeNlu());
+    const replies = await handleRestock(makeNlu(), SOURCE_ID);
     expect(replies[0]!.text).toContain('補充了什麼物品');
   });
 
   it('warns when entity is missing quantity or unit', async () => {
     const nlu = makeNlu({ entities: { items: [{ name: '橄欖油' }] } });
-    const replies = await handleRestock(nlu);
+    const replies = await handleRestock(nlu, SOURCE_ID);
     expect(replies[0]!.text).toContain('缺少數量或單位');
   });
 
-  it('adds stock when item exists', async () => {
+  it('asks for expiry date when item has no expiry (existing item)', async () => {
     mockFindItemByName.mockResolvedValue(mockItem as never);
     const nlu = makeNlu({ entities: { items: [{ name: '橄欖油', quantity: 2, unit: '瓶' }] } });
-    const replies = await handleRestock(nlu);
-    expect(mockAddStock).toHaveBeenCalledWith(
-      'item-1',
-      expect.objectContaining({ quantity: 2, unit: '瓶' }),
-    );
-    expect(replies[0]!.text).toContain('橄欖油 +2瓶');
-  });
-
-  it('creates item when it does not exist', async () => {
-    mockFindItemByName.mockResolvedValue(null);
-    mockFindOrCreateItem.mockResolvedValue({ item: mockItem, created: true } as never);
-    const nlu = makeNlu({ entities: { items: [{ name: '橄欖油', quantity: 1, unit: '瓶' }] } });
-    const replies = await handleRestock(nlu);
-    expect(mockFindOrCreateItem).toHaveBeenCalled();
-    expect(mockAddStock).toHaveBeenCalled();
+    const replies = await handleRestock(nlu, SOURCE_ID);
+    expect(mockAddStock).not.toHaveBeenCalled();
+    expect(replies[0]!.text).toContain('到期日是');
     expect(replies[0]!.text).toContain('橄欖油');
   });
 
-  it('resolves expiry date from expiryDate field', async () => {
+  it('asks for expiry date when item does not exist yet', async () => {
+    mockFindItemByName.mockResolvedValue(null);
+    const nlu = makeNlu({ entities: { items: [{ name: '橄欖油', quantity: 1, unit: '瓶' }] } });
+    const replies = await handleRestock(nlu, SOURCE_ID);
+    expect(mockAddStock).not.toHaveBeenCalled();
+    expect(replies[0]!.text).toContain('到期日是');
+  });
+
+  it('adds stock immediately when expiryDate is provided', async () => {
     mockFindItemByName.mockResolvedValue(mockItem as never);
     const nlu = makeNlu({
       entities: { items: [{ name: '橄欖油', quantity: 1, unit: '瓶', expiryDate: '2027-06-30' }] },
     });
-    const replies = await handleRestock(nlu);
+    const replies = await handleRestock(nlu, SOURCE_ID);
     expect(mockAddStock).toHaveBeenCalledWith(
       'item-1',
       expect.objectContaining({ expiryDate: expect.any(Date) }),
@@ -101,25 +106,29 @@ describe('handleRestock', () => {
     expect(replies[0]!.text).toContain('到期');
   });
 
-  it('resolves expiry date from expiryDays field', async () => {
+  it('adds stock immediately when expiryDays is provided', async () => {
     mockFindItemByName.mockResolvedValue(mockItem as never);
     const nlu = makeNlu({
       entities: { items: [{ name: '橄欖油', quantity: 1, unit: '瓶', expiryDays: 30 }] },
     });
-    await handleRestock(nlu);
+    await handleRestock(nlu, SOURCE_ID);
     expect(mockAddStock).toHaveBeenCalledWith(
       'item-1',
       expect.objectContaining({ expiryDate: expect.any(Date) }),
     );
   });
 
-  it('auto-completes matching purchase list items', async () => {
+  it('auto-completes matching purchase list items when expiry is provided', async () => {
     mockFindItemByName.mockResolvedValue(mockItem as never);
     mockFindPendingItemsByItemIds.mockResolvedValue([
       { id: 'pli-1', item: { name: '橄欖油' } },
     ] as never);
-    const nlu = makeNlu({ entities: { items: [{ name: '橄欖油', quantity: 2, unit: '瓶' }] } });
-    const replies = await handleRestock(nlu);
+    const nlu = makeNlu({
+      entities: {
+        items: [{ name: '橄欖油', quantity: 2, unit: '瓶', expiryDate: '2027-06-30' }],
+      },
+    });
+    const replies = await handleRestock(nlu, SOURCE_ID);
     expect(mockUpdatePurchaseListItemStatus).toHaveBeenCalledWith('pli-1', 'COMPLETED');
     expect(replies[0]!.text).toContain('採購清單已自動標記');
   });

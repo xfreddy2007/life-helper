@@ -10,6 +10,11 @@ type BatchForAlert = {
   item: { name: string };
 };
 
+/** Round to at most 2 decimal places, removing trailing zeros. */
+function fmtQty(n: number): string {
+  return +n.toFixed(2) + '';
+}
+
 /**
  * Format a date as YYYY/MM/DD (Taiwan locale).
  */
@@ -32,7 +37,7 @@ export function formatBatches(batches: ExpiryBatch[]): string {
   return batches
     .map((b) => {
       const exp = b.expiryDate ? ` (${formatDate(b.expiryDate)})` : '';
-      return `${b.quantity}${b.unit}${exp}`;
+      return `${fmtQty(b.quantity)}${b.unit}${exp}`;
     })
     .join('、');
 }
@@ -67,11 +72,20 @@ export function formatInventoryList(
   for (const [cat, catItems] of grouped) {
     lines.push(`【${cat}】`);
     for (const item of catItems) {
-      const unit = item.units[0] ?? '';
-      const qty = `${item.totalQuantity}${unit}`;
+      const batchUnits = new Set(item.expiryBatches.map((b) => b.unit));
+      const mixedUnits = batchUnits.size > 1;
+
       const batches =
         item.expiryBatches.length > 0 ? `（${formatBatches(item.expiryBatches)}）` : '';
-      lines.push(`  ${item.name}：${qty} ${batches}`.trimEnd());
+
+      if (mixedUnits) {
+        // Total is ambiguous — show batches only
+        lines.push(`  ${item.name}：${batches}`.trimEnd());
+      } else {
+        const unit = item.units[0] ?? '';
+        const qty = `${fmtQty(item.totalQuantity)}${unit}`;
+        lines.push(`  ${item.name}：${qty} ${batches}`.trimEnd());
+      }
     }
   }
 
@@ -154,10 +168,23 @@ export function formatDailyConfirm(estimates: DailyEstimateEntry[]): string {
   return lines.join('\n');
 }
 
+export interface ExpiryAlertGroups {
+  expired: BatchForAlert[];
+  expiresToday: BatchForAlert[];
+  expiresInWeek: BatchForAlert[];
+}
+
 /**
- * Build the expiry alert push message.
+ * Build the expiry alert push message with three categories:
+ *   🚨 已過期          — expiryDate < today
+ *   ⚠️ 今日到期        — expiryDate = today
+ *   📅 一週內到期      — tomorrow ≤ expiryDate ≤ today+7
  */
-export function formatExpiryAlert(approaching: BatchForAlert[], expired: BatchForAlert[]): string {
+export function formatExpiryAlert({
+  expired,
+  expiresToday,
+  expiresInWeek,
+}: ExpiryAlertGroups): string {
   const lines: string[] = ['⚠️ 到期提醒', '─────────────────'];
 
   if (expired.length > 0) {
@@ -169,9 +196,18 @@ export function formatExpiryAlert(approaching: BatchForAlert[], expired: BatchFo
     lines.push('');
   }
 
-  if (approaching.length > 0) {
-    lines.push('📅 即將到期');
-    for (const b of approaching) {
+  if (expiresToday.length > 0) {
+    lines.push('⚠️ 今日到期');
+    for (const b of expiresToday) {
+      const dateStr = b.expiryDate ? formatDate(b.expiryDate) : '未知日期';
+      lines.push(`• ${b.item.name}：${b.quantity}${b.unit}（${dateStr}）`);
+    }
+    lines.push('');
+  }
+
+  if (expiresInWeek.length > 0) {
+    lines.push('📅 一週內到期');
+    for (const b of expiresInWeek) {
       const dateStr = b.expiryDate ? formatDate(b.expiryDate) : '未知日期';
       lines.push(`• ${b.item.name}：${b.quantity}${b.unit}（${dateStr} 到期）`);
     }

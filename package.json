@@ -2,7 +2,7 @@
   "name": "life-helper",
   "private": true,
   "type": "module",
-  "version": "0.3.0",
+  "version": "1.0.0",
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",

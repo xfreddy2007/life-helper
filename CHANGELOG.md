@@ -1,5 +1,20 @@
 # Changelog
 
+## v1.0.1 — 2026-04-22
+
+### Features
+
+- push cron notifications to individual user chats (14cb2b7)
+- make LINE_GROUP_ID optional — skip group push when absent (caf7173)
+
+### Bug Fixes
+
+- restore ESM bundle format and createRequire banner in tsup config (8fe54c6)
+
+### Other Changes
+
+- split env loading by environment, disable Sentry in dev (ea2adb6)
+
 ## v1.0.0 — 2026-04-22
 
 First production release. All features developed across the full project lifecycle are included.

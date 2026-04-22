@@ -7,6 +7,7 @@ import type { NluService } from '../services/nlu/nlu.service.js';
 import type { VisionService, ImageMediaType } from '../services/vision.service.js';
 import { getSession } from '../services/session.js';
 import { routeIntent, buildFeaturesMenu } from '../handlers/intent-router.js';
+import { registerUser } from '../services/user-registry.service.js';
 import { handleReceiptImageResult } from '../handlers/receipt-import.handler.js';
 import { logger } from '../lib/logger.js';
 
@@ -45,10 +46,11 @@ async function processEvent(
   nluService: NluService,
   visionService: VisionService,
 ): Promise<void> {
-  // ── Follow event → welcome message ──────────────────────────
+  // ── Follow event → register user + welcome message ──────────
   if (event.type === 'follow') {
     const userId = event.source.type === 'user' ? event.source.userId : null;
     if (userId) {
+      await registerUser(userId);
       await lineClient.replyMessage({
         replyToken: event.replyToken,
         messages: [buildFeaturesMenu() as messagingApi.Message],
@@ -69,6 +71,11 @@ async function processEvent(
   if (!sourceId) {
     logger.warn({ source: event.source }, 'Cannot determine sourceId');
     return;
+  }
+
+  // Register individual users so cron jobs can push to their 1:1 chat
+  if (event.source.type === 'user') {
+    await registerUser(event.source.userId);
   }
 
   const replyToken = event.replyToken;

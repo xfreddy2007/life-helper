@@ -16,7 +16,7 @@ import {
   handleAnomalyConfirmation,
 } from './record-consumption.handler.js';
 import { handleQueryPurchaseList } from './query-purchase-list.handler.js';
-import { handleReceiptConfirmation } from './receipt-import.handler.js';
+import { handleReceiptConfirmation, handleReceiptCorrection } from './receipt-import.handler.js';
 import { handleRestockExpiryResponse } from './restock.handler.js';
 import { handleRevertOperation, handleRevertSelect } from './revert.handler.js';
 import { handleSetConfig } from './set-config.handler.js';
@@ -112,7 +112,7 @@ export function buildFeaturesMenu(): ReplyMessage {
  * Returns the reply message(s) to send back to LINE.
  */
 export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
-  const { nluResult, session, sourceId } = ctx;
+  const { event, nluResult, session, sourceId } = ctx;
 
   // ── Session conflict guard ───────────────────────────────────
   // When a user triggers a new major action while another session is active,
@@ -213,7 +213,17 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
       const result = await handleReceiptConfirmation(false, sourceId);
       if (result) return result;
     }
-    return [{ type: 'text', text: '請傳「確認」匯入收據，或傳「取消」放棄。' }];
+    // Try to parse as a quantity correction (e.g. "可口可樂330ml 6瓶")
+    const rawText =
+      event.type === 'message' && event.message.type === 'text' ? event.message.text.trim() : '';
+    const correctionResult = await handleReceiptCorrection(rawText, sourceId);
+    if (correctionResult) return correctionResult;
+    return [
+      {
+        type: 'text',
+        text: '請傳「確認」匯入收據，或傳「取消」放棄。\n如需修正數量，回覆如：「可口可樂330ml 6瓶」',
+      },
+    ];
   }
 
   // Anomaly confirmation flow (RESTOCK_CONFIRM reused for consumption confirm)

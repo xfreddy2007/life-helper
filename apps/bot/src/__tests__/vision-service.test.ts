@@ -10,8 +10,23 @@ vi.mock('@anthropic-ai/sdk', () => ({
             type: 'text',
             text: JSON.stringify({
               items: [
-                { receiptName: '白米', quantity: 2, unit: '袋' },
-                { receiptName: '橄欖油', quantity: 1, unit: '瓶', expiryDate: '2027-06-30' },
+                {
+                  categoryName: '白米',
+                  quantity: 2,
+                  unit: '袋',
+                  sourceItems: ['白米'],
+                  quantityUnclear: false,
+                  bogoDetected: false,
+                },
+                {
+                  categoryName: '橄欖油',
+                  quantity: 1,
+                  unit: '瓶',
+                  sourceItems: ['橄欖油'],
+                  expiryDate: '2027-06-30',
+                  quantityUnclear: false,
+                  bogoDetected: false,
+                },
               ],
             }),
           },
@@ -26,7 +41,7 @@ describe('VisionService.recognizeReceipt', () => {
     const service = new VisionService('sk-test');
     const result = await service.recognizeReceipt('base64data', 'image/jpeg');
     expect(result.items).toHaveLength(2);
-    expect(result.items[0]!.receiptName).toBe('白米');
+    expect(result.items[0]!.categoryName).toBe('白米');
     expect(result.items[1]!.expiryDate).toBe('2027-06-30');
   });
 

@@ -1,4 +1,9 @@
-import type { WebhookEvent, TextEventMessage, ImageEventMessage } from '@line/bot-sdk';
+import type {
+  WebhookEvent,
+  TextEventMessage,
+  ImageEventMessage,
+  FileEventMessage,
+} from '@line/bot-sdk';
 import type { messagingApi } from '@line/bot-sdk';
 import type { Readable } from 'node:stream';
 import type { Router, Request, Response } from 'express';
@@ -93,6 +98,19 @@ async function processEvent(
     return;
   }
 
+  // ── File message → treat image files as receipt photos ──────
+  if (event.message.type === 'file') {
+    await processFileMessage(
+      event.message as FileEventMessage,
+      replyToken,
+      sourceId,
+      lineClient,
+      lineBlobClient,
+      visionService,
+    );
+    return;
+  }
+
   // ── Text message → NLU intent routing ───────────────────────
   if (event.message.type !== 'text') return;
 
@@ -144,6 +162,54 @@ async function processImageMessage(
     });
   } catch (err) {
     logger.error({ err, sourceId }, 'Error processing image message');
+    await safeReply(lineClient, replyToken, '圖片辨識失敗，請重新傳送或改用文字補貨 🙏');
+  }
+}
+
+const FILE_EXT_TO_MEDIA_TYPE: Record<string, ImageMediaType> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+};
+
+async function processFileMessage(
+  message: FileEventMessage,
+  replyToken: string,
+  sourceId: string,
+  lineClient: LineClient,
+  lineBlobClient: LineBlobClient,
+  visionService: VisionService,
+): Promise<void> {
+  const ext = (message.fileName ?? '').split('.').pop()?.toLowerCase() ?? '';
+
+  // HEIC/HEIF can't be processed by Vision — guide user to use photo picker
+  if (ext === 'heic' || ext === 'heif') {
+    await safeReply(
+      lineClient,
+      replyToken,
+      '請用 LINE 的相片功能（📷）傳送照片，而非「檔案」附件，LINE 會自動轉換格式 🙏',
+    );
+    return;
+  }
+
+  const mediaType = FILE_EXT_TO_MEDIA_TYPE[ext];
+  if (!mediaType) return; // Not a supported image format — ignore silently
+
+  logger.info(
+    { sourceId, messageId: message.id, fileName: message.fileName },
+    'Processing image file message',
+  );
+  try {
+    const stream = await lineBlobClient.getMessageContent(message.id);
+    const imageBuffer = await nodeReadableToBuffer(stream);
+    const imageBase64 = imageBuffer.toString('base64');
+    const visionResult = await visionService.recognizeReceipt(imageBase64, mediaType);
+    const replies = await handleReceiptImageResult(visionResult.items, sourceId);
+    await lineClient.replyMessage({ replyToken, messages: replies as messagingApi.Message[] });
+  } catch (err) {
+    logger.error({ err, sourceId }, 'Error processing image file message');
     await safeReply(lineClient, replyToken, '圖片辨識失敗，請重新傳送或改用文字補貨 🙏');
   }
 }

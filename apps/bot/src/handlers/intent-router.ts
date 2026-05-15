@@ -16,7 +16,6 @@ import {
   handleAnomalyConfirmation,
 } from './record-consumption.handler.js';
 import { handleQueryPurchaseList } from './query-purchase-list.handler.js';
-import { handleReceiptConfirmation, handleReceiptCorrection } from './receipt-import.handler.js';
 import { handleRestockExpiryResponse } from './restock.handler.js';
 import { handleRevertOperation, handleRevertSelect } from './revert.handler.js';
 import { handleSetConfig } from './set-config.handler.js';
@@ -69,7 +68,6 @@ const INTENT_LABELS: Partial<Record<Intent, string>> = {
 const FLOW_LABELS: Partial<Record<ConversationFlow, string>> = {
   ONBOARDING: '庫存盤點',
   RESET_CONFIRM: '全量庫存重置確認',
-  RECEIPT_IMPORT: '收據匯入確認',
   RESTOCK_CONFIRM: '補貨異常確認',
   RESTOCK_EXPIRY: '補充庫存',
   REVERT_SELECT: '撤銷操作',
@@ -112,7 +110,7 @@ export function buildFeaturesMenu(): ReplyMessage {
  * Returns the reply message(s) to send back to LINE.
  */
 export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
-  const { event, nluResult, session, sourceId } = ctx;
+  const { nluResult, session, sourceId } = ctx;
 
   // ── Session conflict guard ───────────────────────────────────
   // When a user triggers a new major action while another session is active,
@@ -201,29 +199,6 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
       return [{ type: 'text', text: '⏳ 盤點正在進行中，請繼續輸入物品，或傳「完成」結束盤點。' }];
     }
     return handleOnboardingStep(nluResult, session, sourceId);
-  }
-
-  // Receipt import confirmation flow
-  if (session?.flow === 'RECEIPT_IMPORT') {
-    if (nluResult.intent === 'CONFIRM_YES') {
-      const result = await handleReceiptConfirmation(true, sourceId);
-      if (result) return result;
-    }
-    if (nluResult.intent === 'CONFIRM_NO') {
-      const result = await handleReceiptConfirmation(false, sourceId);
-      if (result) return result;
-    }
-    // Try to parse as a quantity correction (e.g. "可口可樂330ml 6瓶")
-    const rawText =
-      event.type === 'message' && event.message.type === 'text' ? event.message.text.trim() : '';
-    const correctionResult = await handleReceiptCorrection(rawText, sourceId);
-    if (correctionResult) return correctionResult;
-    return [
-      {
-        type: 'text',
-        text: '請傳「確認」匯入收據，或傳「取消」放棄。\n如需修正數量，回覆如：「可口可樂330ml 6瓶」',
-      },
-    ];
   }
 
   // Anomaly confirmation flow (RESTOCK_CONFIRM reused for consumption confirm)

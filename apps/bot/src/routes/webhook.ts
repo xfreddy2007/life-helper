@@ -1,30 +1,16 @@
-import type {
-  WebhookEvent,
-  TextEventMessage,
-  ImageEventMessage,
-  FileEventMessage,
-} from '@line/bot-sdk';
+import type { WebhookEvent, TextEventMessage } from '@line/bot-sdk';
 import type { messagingApi } from '@line/bot-sdk';
-import type { Readable } from 'node:stream';
 import type { Router, Request, Response } from 'express';
 import { Router as createRouter } from 'express';
 import type { NluService } from '../services/nlu/nlu.service.js';
-import type { VisionService, ImageMediaType } from '../services/vision.service.js';
 import { getSession } from '../services/session.js';
 import { routeIntent, buildFeaturesMenu } from '../handlers/intent-router.js';
 import { registerUser } from '../services/user-registry.service.js';
-import { handleReceiptImageResult } from '../handlers/receipt-import.handler.js';
 import { logger } from '../lib/logger.js';
 
 type LineClient = messagingApi.MessagingApiClient;
-type LineBlobClient = messagingApi.MessagingApiBlobClient;
 
-export function createWebhookRouter(
-  lineClient: LineClient,
-  lineBlobClient: LineBlobClient,
-  nluService: NluService,
-  visionService: VisionService,
-): Router {
+export function createWebhookRouter(lineClient: LineClient, nluService: NluService): Router {
   const router = createRouter();
 
   router.post('/', async (req: Request, res: Response): Promise<void> => {
@@ -34,11 +20,7 @@ export function createWebhookRouter(
     // Respond immediately — LINE requires 200 within 5 seconds
     res.sendStatus(200);
 
-    await Promise.all(
-      body.events.map((event) =>
-        processEvent(event, lineClient, lineBlobClient, nluService, visionService),
-      ),
-    );
+    await Promise.all(body.events.map((event) => processEvent(event, lineClient, nluService)));
   });
 
   return router;
@@ -47,9 +29,7 @@ export function createWebhookRouter(
 async function processEvent(
   event: WebhookEvent,
   lineClient: LineClient,
-  lineBlobClient: LineBlobClient,
   nluService: NluService,
-  visionService: VisionService,
 ): Promise<void> {
   // ── Follow event → register user + welcome message ──────────
   if (event.type === 'follow') {
@@ -85,32 +65,6 @@ async function processEvent(
 
   const replyToken = event.replyToken;
 
-  // ── Image message → receipt recognition ─────────────────────
-  if (event.message.type === 'image') {
-    await processImageMessage(
-      event.message as ImageEventMessage,
-      replyToken,
-      sourceId,
-      lineClient,
-      lineBlobClient,
-      visionService,
-    );
-    return;
-  }
-
-  // ── File message → treat image files as receipt photos ──────
-  if (event.message.type === 'file') {
-    await processFileMessage(
-      event.message as FileEventMessage,
-      replyToken,
-      sourceId,
-      lineClient,
-      lineBlobClient,
-      visionService,
-    );
-    return;
-  }
-
   // ── Text message → NLU intent routing ───────────────────────
   if (event.message.type !== 'text') return;
 
@@ -132,97 +86,6 @@ async function processEvent(
     logger.error({ err, sourceId, text }, 'Error processing text message');
     await safeReply(lineClient, replyToken, '系統暫時無法處理您的請求，請稍後再試 🙏');
   }
-}
-
-async function processImageMessage(
-  message: ImageEventMessage,
-  replyToken: string,
-  sourceId: string,
-  lineClient: LineClient,
-  lineBlobClient: LineBlobClient,
-  visionService: VisionService,
-): Promise<void> {
-  logger.info({ sourceId, messageId: message.id }, 'Processing image message');
-
-  try {
-    // Download image from LINE's blob content API
-    const stream = await lineBlobClient.getMessageContent(message.id);
-    const imageBuffer = await nodeReadableToBuffer(stream);
-    const imageBase64 = imageBuffer.toString('base64');
-
-    // LINE image messages are JPEG unless from an external provider
-    const mediaType: ImageMediaType = 'image/jpeg';
-
-    const visionResult = await visionService.recognizeReceipt(imageBase64, mediaType);
-    const replies = await handleReceiptImageResult(visionResult.items, sourceId);
-
-    await lineClient.replyMessage({
-      replyToken,
-      messages: replies as messagingApi.Message[],
-    });
-  } catch (err) {
-    logger.error({ err, sourceId }, 'Error processing image message');
-    await safeReply(lineClient, replyToken, '圖片辨識失敗，請重新傳送或改用文字補貨 🙏');
-  }
-}
-
-const FILE_EXT_TO_MEDIA_TYPE: Record<string, ImageMediaType> = {
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  png: 'image/png',
-  webp: 'image/webp',
-  gif: 'image/gif',
-};
-
-async function processFileMessage(
-  message: FileEventMessage,
-  replyToken: string,
-  sourceId: string,
-  lineClient: LineClient,
-  lineBlobClient: LineBlobClient,
-  visionService: VisionService,
-): Promise<void> {
-  const ext = (message.fileName ?? '').split('.').pop()?.toLowerCase() ?? '';
-
-  // HEIC/HEIF can't be processed by Vision — guide user to use photo picker
-  if (ext === 'heic' || ext === 'heif') {
-    await safeReply(
-      lineClient,
-      replyToken,
-      '請用 LINE 的相片功能（📷）傳送照片，而非「檔案」附件，LINE 會自動轉換格式 🙏',
-    );
-    return;
-  }
-
-  const mediaType = FILE_EXT_TO_MEDIA_TYPE[ext];
-  if (!mediaType) return; // Not a supported image format — ignore silently
-
-  logger.info(
-    { sourceId, messageId: message.id, fileName: message.fileName },
-    'Processing image file message',
-  );
-  try {
-    const stream = await lineBlobClient.getMessageContent(message.id);
-    const imageBuffer = await nodeReadableToBuffer(stream);
-    const imageBase64 = imageBuffer.toString('base64');
-    const visionResult = await visionService.recognizeReceipt(imageBase64, mediaType);
-    const replies = await handleReceiptImageResult(visionResult.items, sourceId);
-    await lineClient.replyMessage({ replyToken, messages: replies as messagingApi.Message[] });
-  } catch (err) {
-    logger.error({ err, sourceId }, 'Error processing image file message');
-    await safeReply(lineClient, replyToken, '圖片辨識失敗，請重新傳送或改用文字補貨 🙏');
-  }
-}
-
-// ── Utilities ─────────────────────────────────────────────────
-
-/** Buffer a Node.js Readable stream into a Buffer. */
-async function nodeReadableToBuffer(stream: Readable): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of stream) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk as Uint8Array));
-  }
-  return Buffer.concat(chunks);
 }
 
 async function safeReply(lineClient: LineClient, replyToken: string, text: string): Promise<void> {

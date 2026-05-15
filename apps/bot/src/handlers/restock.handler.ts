@@ -39,7 +39,7 @@ export async function handleRestock(nlu: NluResult, sourceId: string): Promise<R
     return [
       {
         type: 'text',
-        text: '請告訴我補充了什麼物品，例如：\n「今天買了橄欖油 2 瓶，到期 2026/12」\n\n傳「結束」取消',
+        text: '請告訴我補充了什麼物品：\n\n📝 直接輸入，例如：\n「今天買了橄欖油 2 瓶，到期 2026/12」\n\n🧾 或直接上傳收據照片，我會自動辨識\n\n傳「結束」取消',
       },
     ];
   }

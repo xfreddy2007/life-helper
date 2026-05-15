@@ -45,7 +45,7 @@ describe('Session service', () => {
 
   it('sets session with correct key and TTL', async () => {
     mockSet.mockResolvedValueOnce('OK');
-    const state = newSession('RECEIPT_IMPORT');
+    const state = newSession('ONBOARDING');
 
     await setSession('user-456', state);
     expect(mockSet).toHaveBeenCalledWith(

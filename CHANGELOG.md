@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.1.0 — 2026-05-15
+
+### Features
+
+- remove receipt image recognition feature — unreliable Vision API scanning replaced by text-only restock flow (075689e)
+- aggregate receipt items by category, flag BOGO and unclear quantity (b2e458d)
+- hint receipt upload option in restock session prompt (7fdfba7)
+
+### Bug Fixes
+
+- handle file messages so HEIC receipt uploads get a helpful reply (4720023)
+- add createRequire banner to ESM bundle for CJS dependency compat (b9138be)
+- switch tsup output to ESM to resolve import.meta crash on Fly.io (d15269c)
+
+### Other Changes
+
+- sync tsup config from main (ESM format + createRequire banner) (4160bb3)
+
 ## v1.0.1 — 2026-04-22
 
 ### Features

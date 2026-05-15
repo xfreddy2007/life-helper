@@ -11,7 +11,6 @@ import { logger } from './lib/logger.js';
 import { closeRedis } from './lib/redis.js';
 import { lineSignatureMiddleware } from './middleware/line-signature.js';
 import { NluService } from './services/nlu/nlu.service.js';
-import { VisionService } from './services/vision.service.js';
 import { createWebhookRouter } from './routes/webhook.js';
 import { cronManager } from './cron/cron-manager.js';
 
@@ -19,11 +18,6 @@ const app = express();
 
 // ── LINE clients (shared across webhook + cron) ────────────
 const lineClient = new messagingApi.MessagingApiClient({
-  channelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
-});
-
-// Blob client is the separate client for downloading message content (images etc.)
-const lineBlobClient = new messagingApi.MessagingApiBlobClient({
   channelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
 });
 
@@ -56,15 +50,7 @@ app.post(
 
 // 4. Mount the webhook router via app.use so Express strips '/webhook'
 //    and router.post('/') inside the router matches correctly.
-app.use(
-  '/webhook',
-  createWebhookRouter(
-    lineClient,
-    lineBlobClient,
-    new NluService(env.ANTHROPIC_API_KEY),
-    new VisionService(env.ANTHROPIC_API_KEY),
-  ),
-);
+app.use('/webhook', createWebhookRouter(lineClient, new NluService(env.ANTHROPIC_API_KEY)));
 
 // ── Global JSON parser for all other routes ────────────────
 app.use(express.json());

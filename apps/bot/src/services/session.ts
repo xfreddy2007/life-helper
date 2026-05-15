@@ -1,7 +1,6 @@
 import { getRedis } from '../lib/redis.js';
 
 export type ConversationFlow =
-  | 'RECEIPT_IMPORT'
   | 'ONBOARDING'
   | 'RESTOCK_CONFIRM'
   | 'RESET_CONFIRM'

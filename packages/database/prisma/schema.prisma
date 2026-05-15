@@ -46,8 +46,6 @@ model Item {
   expiryBatches      ExpiryBatch[]
   consumptionLogs    ConsumptionLog[]
   purchaseListItems  PurchaseListItem[]
-  receiptMappings    ReceiptMapping[]
-
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
 }
@@ -132,18 +130,6 @@ enum PurchaseItemStatus {
   PENDING
   COMPLETED
   SKIPPED
-}
-
-// ──────────────────────────────────────
-// 收據品名對應紀錄
-// ──────────────────────────────────────
-model ReceiptMapping {
-  id           String   @id @default(cuid())
-  receiptName  String   @unique  // 收據上的品名
-  itemId       String
-  item         Item     @relation(fields: [itemId], references: [id])
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
 }
 
 // ──────────────────────────────────────

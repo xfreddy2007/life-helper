@@ -1,4 +1,3 @@
-import type { WebhookEvent } from '@line/bot-sdk';
 import type { Intent, NluResult } from '../services/nlu/schema.js';
 import type { ConversationFlow, ConversationState } from '../services/session.js';
 import { handleQueryInventory } from './query-inventory.handler.js';
@@ -24,7 +23,6 @@ import { clearSession, setSession } from '../services/session.js';
 import { logger } from '../lib/logger.js';
 
 export interface RouterContext {
-  event: WebhookEvent;
   nluResult: NluResult;
   session: ConversationState | null;
   sourceId: string;

@@ -28,6 +28,11 @@ export const env = createEnv({
     // Redis
     REDIS_URL: z.string().min(1),
 
+    // Slack Bot (optional — both tokens required to enable Slack)
+    SLACK_BOT_TOKEN: z.string().startsWith('xoxb-').optional(),
+    SLACK_APP_TOKEN: z.string().startsWith('xapp-').optional(),
+    SLACK_DEFAULT_CHANNEL: z.string().optional(),
+
     // Sentry (optional)
     SENTRY_DSN: z.string().url().optional(),
 

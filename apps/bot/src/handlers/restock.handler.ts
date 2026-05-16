@@ -200,15 +200,15 @@ export async function handleRestockExpiryResponse(
     ];
   }
 
-  const expiryDate = parsedDate ?? todayMidnight();
-  const todayNotice = !parsedDate ? `（無到期日，已使用今天日期 ${fmtDate(expiryDate)} 記錄）` : '';
+  const expiryDate = parsedDate ?? undefined;
+  const todayNotice = !parsedDate ? '（無到期日）' : '';
 
   // Save the current item
   const { item } = await findOrCreateItem(current.name, current.defaultCategoryId, [current.unit]);
   await addStock(item.id, { quantity: current.quantity, unit: current.unit, expiryDate });
 
   const expStr = parsedDate
-    ? `（到期：${expiryDate.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}）`
+    ? `（到期：${parsedDate.toLocaleDateString('zh-TW', { timeZone: 'Asia/Taipei' })}）`
     : todayNotice;
 
   await createOperationLog(
@@ -221,7 +221,7 @@ export async function handleRestockExpiryResponse(
       itemName: current.name,
       quantity: current.quantity,
       unit: current.unit,
-      expiryDate: expiryDate.toISOString(),
+      expiryDate: expiryDate?.toISOString() ?? null,
     },
   );
 

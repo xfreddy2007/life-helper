@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { routeIntent } from '../handlers/intent-router.js';
 import type { RouterContext } from '../handlers/intent-router.js';
-import type { WebhookEvent } from '@line/bot-sdk';
 
 // Mock database to keep tests unit-level
 vi.mock('@life-helper/database', () => ({
@@ -40,7 +39,6 @@ const mockClearSession = vi.mocked(clearSession);
 
 function makeCtx(overrides: Partial<RouterContext>): RouterContext {
   return {
-    event: {} as WebhookEvent,
     nluResult: {
       intent: 'UNKNOWN',
       entities: {},
@@ -172,7 +170,7 @@ describe('session conflict guard', () => {
     const replies = await routeIntent(ctx);
     expect(replies[0]?.text).toContain('補充庫存');
     expect(replies[0]?.text).toContain('正在進行中');
-    expect(replies[0]?.text).toContain('確認');
+    expect(replies[0]?.quickReply?.items).toHaveLength(2);
     expect(mockSetSession).toHaveBeenCalledWith(
       'group-test',
       expect.objectContaining({ flow: 'SESSION_INTERRUPT' }),
@@ -300,7 +298,8 @@ describe('session conflict guard', () => {
       nluResult: { intent: 'UNKNOWN', entities: {}, rawText: '嗯', confidence: 0 },
     });
     const replies = await routeIntent(ctx);
-    expect(replies[0]?.text).toContain('請傳「確認」');
+    expect(replies[0]?.text).toContain('請選擇「確認」');
+    expect(replies[0]?.quickReply?.items).toHaveLength(2);
   });
 
   it('QUERY_INVENTORY bypasses the conflict guard (passthrough intent)', async () => {

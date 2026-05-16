@@ -1,5 +1,23 @@
 # Changelog
 
+## v1.2.0 — 2026-05-16
+
+### Features
+
+- add Slack as a second messaging interface via Socket Mode (a258b22)
+- replace confirm/cancel text prompts with Block Kit buttons across all session flows (d30b167)
+- add Block Kit buttons to revert flow; update e2e-test skill to use computer-use for button clicks (1eac10a)
+
+### Bug Fixes
+
+- store null expiry when user skips expiry date in restock flow (b943d95)
+- update stale test assertions for Block Kit button text changes (b92f6f9)
+
+### Other Changes
+
+- add e2e-test skill (52af0e5)
+- bump version to 1.2.0 (17afea8)
+
 ## v1.1.0 — 2026-05-15
 
 ### Features

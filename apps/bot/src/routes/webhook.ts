@@ -1,11 +1,11 @@
-import type { WebhookEvent, TextEventMessage } from '@line/bot-sdk';
+import type { WebhookEvent } from '@line/bot-sdk';
 import type { messagingApi } from '@line/bot-sdk';
 import type { Router, Request, Response } from 'express';
 import { Router as createRouter } from 'express';
 import type { NluService } from '../services/nlu/nlu.service.js';
-import { getSession } from '../services/session.js';
-import { routeIntent, buildFeaturesMenu } from '../handlers/intent-router.js';
+import { buildFeaturesMenu } from '../handlers/intent-router.js';
 import { registerUser } from '../services/user-registry.service.js';
+import { processTextMessage } from './message-processor.js';
 import { logger } from '../lib/logger.js';
 
 type LineClient = messagingApi.MessagingApiClient;
@@ -65,17 +65,12 @@ async function processEvent(
 
   const replyToken = event.replyToken;
 
-  // ── Text message → NLU intent routing ───────────────────────
   if (event.message.type !== 'text') return;
 
-  const textMessage = event.message as TextEventMessage;
-  const text = textMessage.text.trim();
-  logger.info({ sourceId, text }, 'Processing text message');
+  const text = event.message.text.trim();
 
   try {
-    const [nluResult, session] = await Promise.all([nluService.parse(text), getSession(sourceId)]);
-    const replies = await routeIntent({ event, nluResult, session, sourceId });
-
+    const replies = await processTextMessage(text, sourceId, nluService);
     if (replies.length > 0) {
       await lineClient.replyMessage({
         replyToken,

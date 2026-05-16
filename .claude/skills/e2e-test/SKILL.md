@@ -139,6 +139,29 @@ Track results in a running table: `| # | Description | Input | Expected | Status
 
 ---
 
+### Block Kit Button Click Procedure
+
+Session confirmation prompts now render **Block Kit action buttons** (確認 / 取消) in Slack.
+When a test step is marked `[BUTTON CLICK: 確認]` or `[BUTTON CLICK: 取消]`, use computer-use
+to click the button instead of typing text:
+
+1. **Load computer-use tools** — `ToolSearch` with `query: "computer-use", max_results: 30` to
+   fetch all `mcp__computer-use__*` schemas.
+2. **Request access** — call `request_access` with `applications: ["Slack"]`.
+3. **Bring Slack to front** — call `open_application` with `name: "Slack"`.
+4. **Screenshot** — call `screenshot` to capture the screen.
+5. **Locate the button** — inspect the screenshot image; find the most recent bot message that
+   contains the target button label (確認 or 取消).
+6. **Click** — call `left_click` at the button's pixel coordinates.
+7. **Confirm** — wait 5 s, then read the channel via `slack_read_channel` (limit=2) to verify
+   the bot responded. A successful click removes the buttons from the original message and
+   triggers the next bot reply.
+
+> If the Slack window is not visible or the button is obscured, call `screenshot` again after
+> `open_application` and scroll the channel to the bottom before clicking.
+
+---
+
 ### Test suite
 
 #### Group A — Single-turn intents (no session state)
@@ -206,8 +229,8 @@ Track results in a running table: `| # | Description | Input | Expected | Status
 **D2 — Anomaly detection (large amount)**
 
 - Input: `用了白米 100 kg`
-- Expected: bot reply contains a confirmation prompt (anomaly detected) with `確認` option
-- Follow-up input: `取消`
+- Expected: bot reply contains a confirmation prompt (anomaly detected) with Block Kit 確認/取消 buttons
+- Follow-up: `[BUTTON CLICK: 取消]` — use the Block Kit Button Click Procedure above
 - Expected follow-up reply: `已取消` or similar cancellation confirmation
 
 **D3 — Query after consumption**
@@ -220,13 +243,13 @@ Track results in a running table: `| # | Description | Input | Expected | Status
 **E1 — Interrupt mid-onboarding**
 
 - Input: `開始盤點`
-- Expected: bot starts onboarding flow with `重置` or `確認` prompt
+- Expected: bot starts onboarding flow with `重置` or `確認` prompt and Block Kit 確認/取消 buttons
 - Interrupt input: `補充庫存 衛生紙 3 包`
-- Expected interrupt reply: contains `正在進行中` and `確認` / `取消` options (SESSION_INTERRUPT guard triggered)
-- Resolution input: `取消`
+- Expected interrupt reply: contains `正在進行中` with Block Kit 確認/取消 buttons (SESSION_INTERRUPT guard triggered)
+- Resolution: `[BUTTON CLICK: 取消]` — use the Block Kit Button Click Procedure above
 - Expected resolution reply: `已繼續` or `繼續目前操作` (returning to onboarding)
-- Abort onboarding: `取消`
-- Expected: session cleared
+- Abort onboarding: `[BUTTON CLICK: 取消]` on the original RESET_CONFIRM message (still visible in channel); if that message's buttons were already removed, type `取消` instead
+- Expected: session cleared (`已取消，庫存未變動`)
 
 **E2 — Interrupt and switch**
 
@@ -242,12 +265,14 @@ Track results in a running table: `| # | Description | Input | Expected | Status
 - Input: `撤銷操作`
 - Expected: bot lists recent operations to revert (contains `白米` or a log entry)
 - Follow-up input: `1` (select first entry) or whichever number is shown
-- Expected follow-up reply: bot shows confirmation prompt with the selected operation
-- Follow-up input: `確認`
+  - ⚠️ **MCP suffix**: the Slack MCP appends `*發送工具* Claude` to messages; the number
+    selection step uses `parseInt` which still extracts the leading digit correctly, so this
+    step should parse fine
+- Expected follow-up reply: bot shows confirmation prompt `確認要撤銷：…` with Block Kit 確認/取消 buttons
+- Follow-up: `[BUTTON CLICK: 確認]` — use the Block Kit Button Click Procedure above
+  - Clicking the button sends the exact string `"確認"` without any MCP suffix, bypassing the
+    previous MCP limitation entirely
 - Expected follow-up reply: contains `撤銷成功` or `已還原`
-- ⚠️ **MCP limitation**: the Slack MCP appends `*發送工具* Claude` to every message, which
-  breaks the `REVERT_SELECT` rawText match for `"確認"`. This only affects MCP-based testing;
-  real Slack users are unaffected. Mark F1 as PARTIAL if the confirm step re-prompts.
 
 #### Group G — PURGE_EXPIRED
 

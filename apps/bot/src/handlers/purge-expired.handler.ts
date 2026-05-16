@@ -6,7 +6,7 @@ import { setSession, clearSession, newSession } from '../services/session.js';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ConversationState } from '../services/session.js';
 import type { ReplyMessage } from './intent-router.js';
-import { CONFIRM_CANCEL_QUICK_REPLY } from './intent-router.js';
+import { CONFIRM_CANCEL_QUICK_REPLY, CANCEL_ONLY_QUICK_REPLY } from './intent-router.js';
 
 // ── Internal types ────────────────────────────────────────────
 
@@ -64,7 +64,9 @@ export async function handlePurgeExpired(sourceId: string): Promise<ReplyMessage
   sess.data = { batches: allBatches };
   await setSession(sourceId, sess);
 
-  return [{ type: 'text', text: buildListMessage(allBatches) }];
+  return [
+    { type: 'text', text: buildListMessage(allBatches), quickReply: CANCEL_ONLY_QUICK_REPLY },
+  ];
 }
 
 /**
@@ -95,8 +97,9 @@ export async function handlePurgeExpiredFlow(
         {
           type: 'text',
           text:
-            `請輸入有效的項目編號（1 ～ ${batches.length}），或傳「取消」放棄。\n\n` +
+            `請輸入有效的項目編號（1 ～ ${batches.length}）\n\n` +
             `例如：「1」、「2 1${batches[0]?.unit ?? '瓶'}」、「1,2」、「全部」`,
+          quickReply: CANCEL_ONLY_QUICK_REPLY,
         },
       ];
     }
@@ -216,7 +219,6 @@ function buildListMessage(batches: PurgeBatchEntry[]): string {
   lines.push(`• 「1 2${exampleUnit}」清理第 1 項 2${exampleUnit}`);
   lines.push('• 「1,2」清理第 1、2 項全部');
   lines.push('• 「全部」清理所有項目');
-  lines.push('或傳「取消」放棄');
 
   return lines.join('\n');
 }

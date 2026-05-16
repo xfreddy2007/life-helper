@@ -13,7 +13,7 @@ import {
 import { getSession, setSession, clearSession, newSession } from '../services/session.js';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ReplyMessage } from './intent-router.js';
-import { CONFIRM_CANCEL_QUICK_REPLY } from './intent-router.js';
+import { CONFIRM_CANCEL_QUICK_REPLY, DONE_QUICK_REPLY, SKIP_QUICK_REPLY } from './intent-router.js';
 import type { ConversationState } from '../services/session.js';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -90,7 +90,8 @@ export async function handleOnboardingStep(
     return [
       {
         type: 'text',
-        text: '請輸入物品格式：「物品名稱 數量 單位 有效日期」\n例如：「白米 5 kg 2027/06」\n\n輸入「完成」結束盤點。',
+        text: '請輸入物品格式：「物品名稱 數量 單位 有效日期」\n例如：「白米 5 kg 2027/06」\n\n輸入完畢後按「完成」結束盤點。',
+        quickReply: DONE_QUICK_REPLY,
       },
     ];
   }
@@ -166,7 +167,8 @@ export async function handleOnboardingStep(
     return [
       {
         type: 'text',
-        text: `${prefix}❓ 「${first.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請傳「跳過」`,
+        text: `${prefix}❓ 「${first.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請按「跳過」`,
+        quickReply: SKIP_QUICK_REPLY,
       },
     ];
   }
@@ -187,7 +189,8 @@ export async function handleOnboardingStep(
   return [
     {
       type: 'text',
-      text: `${results.join('\n')}\n\n繼續輸入下一項，或傳「完成」結束盤點。`,
+      text: `${results.join('\n')}\n\n繼續輸入下一項，或按「完成」結束盤點。`,
+      quickReply: DONE_QUICK_REPLY,
     },
   ];
 }
@@ -307,7 +310,8 @@ async function beginOnboarding(sourceId: string, afterReset = false): Promise<Re
   return [
     {
       type: 'text',
-      text: `${prefix}📋 開始盤點！\n\n請依序輸入家中現有物品，格式：\n「物品名稱 數量 單位 有效日期」\n\n例如：\n• 白米 5 kg 2027/06\n• 橄欖油 2 瓶 2026/12/31\n• 廚房紙巾 3 包\n\n可用分類：\n${catList}\n\n輸入「完成」結束盤點。`,
+      text: `${prefix}📋 開始盤點！\n\n請依序輸入家中現有物品，格式：\n「物品名稱 數量 單位 有效日期」\n\n例如：\n• 白米 5 kg 2027/06\n• 橄欖油 2 瓶 2026/12/31\n• 廚房紙巾 3 包\n\n可用分類：\n${catList}\n\n輸入完畢後按「完成」結束盤點。`,
+      quickReply: DONE_QUICK_REPLY,
     },
   ];
 }
@@ -346,7 +350,8 @@ async function handleExpiryDateResponse(
     return [
       {
         type: 'text',
-        text: `❓ 「${current.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請傳「跳過」`,
+        text: `❓ 「${current.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請按「跳過」`,
+        quickReply: SKIP_QUICK_REPLY,
       },
     ];
   }
@@ -356,7 +361,8 @@ async function handleExpiryDateResponse(
     return [
       {
         type: 'text',
-        text: `❌ 到期日 ${fmtDate(parsedDate)} 已是過去的日期，請重新輸入有效到期日。\n\n若無到期日請傳「跳過」`,
+        text: `❌ 到期日 ${fmtDate(parsedDate)} 已是過去的日期，請重新輸入有效到期日。\n\n若無到期日請按「跳過」`,
+        quickReply: SKIP_QUICK_REPLY,
       },
     ];
   }
@@ -397,7 +403,8 @@ async function handleExpiryDateResponse(
     return [
       {
         type: 'text',
-        text: `${todayNotice ? todayNotice + '\n\n' : ''}❓ 「${next.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請傳「跳過」`,
+        text: `${todayNotice ? todayNotice + '\n\n' : ''}❓ 「${next.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請按「跳過」`,
+        quickReply: SKIP_QUICK_REPLY,
       },
     ];
   }
@@ -416,7 +423,13 @@ async function handleExpiryDateResponse(
     data: { pendingExpiryQueue: [], completionPending: false },
   };
   await setSession(sourceId, updatedSession);
-  return [{ type: 'text', text: `繼續輸入下一項，或傳「完成」結束盤點。${todayNotice}` }];
+  return [
+    {
+      type: 'text',
+      text: `繼續輸入下一項，或按「完成」結束盤點。${todayNotice}`,
+      quickReply: DONE_QUICK_REPLY,
+    },
+  ];
 }
 
 /**

@@ -12,6 +12,7 @@ import { setSession, clearSession, newSession } from '../services/session.js';
 import type { ConversationState } from '../services/session.js';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ReplyMessage } from './intent-router.js';
+import { SKIP_QUICK_REPLY, CANCEL_ONLY_QUICK_REPLY } from './intent-router.js';
 
 // ── Types ──────────────────────────────────────────────────────
 
@@ -39,7 +40,8 @@ export async function handleRestock(nlu: NluResult, sourceId: string): Promise<R
     return [
       {
         type: 'text',
-        text: '請告訴我補充了什麼物品：\n\n📝 直接輸入，例如：\n「今天買了橄欖油 2 瓶，到期 2026/12」\n\n🧾 或直接上傳收據照片，我會自動辨識\n\n傳「結束」取消',
+        text: '請告訴我補充了什麼物品：\n\n📝 直接輸入，例如：\n「今天買了橄欖油 2 瓶，到期 2026/12」\n\n🧾 或直接上傳收據照片，我會自動辨識',
+        quickReply: CANCEL_ONLY_QUICK_REPLY,
       },
     ];
   }
@@ -125,7 +127,8 @@ export async function handleRestock(nlu: NluResult, sourceId: string): Promise<R
     return [
       {
         type: 'text',
-        text: `${prefix}❓ 「${first.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請傳「跳過」`,
+        text: `${prefix}❓ 「${first.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請按「跳過」`,
+        quickReply: SKIP_QUICK_REPLY,
       },
     ];
   }
@@ -185,7 +188,8 @@ export async function handleRestockExpiryResponse(
     return [
       {
         type: 'text',
-        text: `❓ 「${current.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請傳「跳過」`,
+        text: `❓ 「${current.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請按「跳過」`,
+        quickReply: SKIP_QUICK_REPLY,
       },
     ];
   }
@@ -195,7 +199,8 @@ export async function handleRestockExpiryResponse(
     return [
       {
         type: 'text',
-        text: `❌ 到期日 ${fmtDate(parsedDate)} 已是過去的日期，請重新輸入有效到期日。\n\n若無到期日請傳「跳過」`,
+        text: `❌ 到期日 ${fmtDate(parsedDate)} 已是過去的日期，請重新輸入有效到期日。\n\n若無到期日請按「跳過」`,
+        quickReply: SKIP_QUICK_REPLY,
       },
     ];
   }
@@ -246,7 +251,8 @@ export async function handleRestockExpiryResponse(
     return [
       {
         type: 'text',
-        text: `❓ 「${next.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請傳「跳過」`,
+        text: `❓ 「${next.name}」的到期日是？（格式：YYYY/MM 或 YYYY/MM/DD）\n\n若無到期日請按「跳過」`,
+        quickReply: SKIP_QUICK_REPLY,
       },
     ];
   }

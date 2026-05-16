@@ -46,6 +46,18 @@ export const CONFIRM_CANCEL_QUICK_REPLY: NonNullable<ReplyMessage['quickReply']>
   ],
 };
 
+export const DONE_QUICK_REPLY: NonNullable<ReplyMessage['quickReply']> = {
+  items: [{ type: 'action', action: { type: 'message', label: '完成', text: '完成' } }],
+};
+
+export const SKIP_QUICK_REPLY: NonNullable<ReplyMessage['quickReply']> = {
+  items: [{ type: 'action', action: { type: 'message', label: '跳過', text: '跳過' } }],
+};
+
+export const CANCEL_ONLY_QUICK_REPLY: NonNullable<ReplyMessage['quickReply']> = {
+  items: [{ type: 'action', action: { type: 'message', label: '取消', text: '取消' } }],
+};
+
 // Intents that are always allowed through regardless of active session.
 // Everything else triggers the conflict guard when a session is running.
 const SESSION_PASSTHROUGH_INTENTS = new Set<Intent>([
@@ -83,8 +95,10 @@ const FLOW_LABELS: Partial<Record<ConversationFlow, string>> = {
 // Returns true for (flow, intent) pairs that are continuations of the same flow —
 // these should not trigger the conflict guard.
 function isSameContinuation(flow: ConversationFlow, intent: Intent): boolean {
-  // ONBOARDING already shows its own "in progress" message for START_ONBOARDING
-  if (flow === 'ONBOARDING' && intent === 'START_ONBOARDING') return true;
+  // ONBOARDING is a free-form multi-step flow where the user types items in any format.
+  // The NLU may classify those entries as RESTOCK, UNKNOWN, or other intents, so all
+  // intents must pass through to handleOnboardingStep without triggering SESSION_INTERRUPT.
+  if (flow === 'ONBOARDING') return true;
   // RESTOCK_EXPIRY routes RESTOCK back through handleRestockExpiryResponse
   if (flow === 'RESTOCK_EXPIRY' && intent === 'RESTOCK') return true;
   return false;
@@ -200,7 +214,13 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
 
   if (session?.flow === 'ONBOARDING') {
     if (nluResult.intent === 'START_ONBOARDING' || nluResult.intent === 'QUERY_INVENTORY') {
-      return [{ type: 'text', text: '⏳ 盤點正在進行中，請繼續輸入物品，或傳「完成」結束盤點。' }];
+      return [
+        {
+          type: 'text',
+          text: '⏳ 盤點正在進行中，請繼續輸入物品，或按「完成」結束盤點。',
+          quickReply: DONE_QUICK_REPLY,
+        },
+      ];
     }
     return handleOnboardingStep(nluResult, session, sourceId);
   }

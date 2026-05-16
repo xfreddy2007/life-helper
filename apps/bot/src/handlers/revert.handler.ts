@@ -5,7 +5,7 @@ import {
 } from '@life-helper/database/repositories';
 import { getSession, setSession, clearSession, newSession } from '../services/session.js';
 import type { ReplyMessage } from './intent-router.js';
-import { CONFIRM_CANCEL_QUICK_REPLY } from './intent-router.js';
+import { CONFIRM_CANCEL_QUICK_REPLY, CANCEL_ONLY_QUICK_REPLY } from './intent-router.js';
 
 // ── Types stored in session ───────────────────────────────────
 
@@ -37,7 +37,8 @@ export async function handleRevertOperation(sourceId: string): Promise<ReplyMess
   return [
     {
       type: 'text',
-      text: `📋 最近 ${entries.length} 筆操作記錄：\n\n${lines}\n\n請輸入要撤銷的編號，或傳「取消」放棄。`,
+      text: `📋 最近 ${entries.length} 筆操作記錄：\n\n${lines}\n\n請輸入要撤銷的編號：`,
+      quickReply: CANCEL_ONLY_QUICK_REPLY,
     },
   ];
 }
@@ -67,7 +68,8 @@ export async function handleRevertSelect(text: string, sourceId: string): Promis
       return [
         {
           type: 'text',
-          text: `請輸入 1 到 ${entries.length} 之間的數字，或傳「取消」放棄。`,
+          text: `請輸入 1 到 ${entries.length} 之間的數字：`,
+          quickReply: CANCEL_ONLY_QUICK_REPLY,
         },
       ];
     }

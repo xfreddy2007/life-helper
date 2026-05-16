@@ -59,36 +59,8 @@ const SYSTEM_PROMPT = `你是「居家生活小幫手」LINE Bot 的自然語言
 
 ## 輸出格式
 
-嚴格輸出 JSON，不要加任何說明文字。格式如下：
-{
-  "intent": "<INTENT>",
-  "entities": {
-    "items": [
-      {
-        "name": "<string>",
-        "quantity": <number> | null,
-        "unit": "<string>" | null,
-        "expiryDate": "<YYYY-MM-DD>" | null,
-        "expiryDays": <number> | null,
-        "unitMismatch": <true|false>,
-        "suggestedUnit": "<string>" | null
-      }
-    ] | null,
-    "category": "<string>" | null,
-    "targetDate": "<ISO date>" | null,
-    "config": {
-      "cronKey": "DAILY_CONFIRM_PUSH" | "EXPIRY_ALERT" | "WEEKLY_PURCHASE" | null,
-      "hour": <number> | null,
-      "minute": <number> | null,
-      "weekdays": [<number>, ...] | null,
-      "intervalSeconds": <number> | null,
-      "intervalMinutes": <number> | null,
-      "intervalHours": <number> | null
-    } | null
-  },
-  "rawText": "<原始輸入>",
-  "confidence": <0.0-1.0>
-}`;
+嚴格輸出**單行緊湊 JSON**，禁止使用 markdown、code fence、換行或縮排。直接輸出純文字 JSON，不加任何前後說明。格式如下（所有欄位必須存在）：
+{"intent":"<INTENT>","entities":{"items":[{"name":"<string>","quantity":<number>|null,"unit":"<string>"|null,"expiryDate":"<YYYY-MM-DD>"|null,"expiryDays":<number>|null,"unitMismatch":<true|false>,"suggestedUnit":"<string>"|null}]|null,"category":"<string>"|null,"targetDate":"<ISO date>"|null,"config":{"cronKey":"DAILY_CONFIRM_PUSH"|"EXPIRY_ALERT"|"WEEKLY_PURCHASE"|null,"hour":<number>|null,"minute":<number>|null,"weekdays":[<number>]|null,"intervalSeconds":<number>|null,"intervalMinutes":<number>|null,"intervalHours":<number>|null}|null},"rawText":"<原始輸入>","confidence":<0.0-1.0>}`;
 
 export class NluService {
   private client: Anthropic;
@@ -98,9 +70,13 @@ export class NluService {
   }
 
   async parse(text: string): Promise<NluResult> {
+    // Output tokens scale with item count (≈ line count). Each item needs ~60 tokens in
+    // compact JSON; add 512 base for the JSON envelope + rawText. Floor at 1024.
+    const lineCount = text.split('\n').length;
+    const maxTokens = Math.min(8192, Math.max(1024, lineCount * 80 + 512));
     const response = await this.client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 512,
+      max_tokens: maxTokens,
       system: [
         {
           type: 'text',

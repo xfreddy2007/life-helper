@@ -83,8 +83,10 @@ const FLOW_LABELS: Partial<Record<ConversationFlow, string>> = {
 // Returns true for (flow, intent) pairs that are continuations of the same flow —
 // these should not trigger the conflict guard.
 function isSameContinuation(flow: ConversationFlow, intent: Intent): boolean {
-  // ONBOARDING already shows its own "in progress" message for START_ONBOARDING
-  if (flow === 'ONBOARDING' && intent === 'START_ONBOARDING') return true;
+  // ONBOARDING is a free-form multi-step flow where the user types items in any format.
+  // The NLU may classify those entries as RESTOCK, UNKNOWN, or other intents, so all
+  // intents must pass through to handleOnboardingStep without triggering SESSION_INTERRUPT.
+  if (flow === 'ONBOARDING') return true;
   // RESTOCK_EXPIRY routes RESTOCK back through handleRestockExpiryResponse
   if (flow === 'RESTOCK_EXPIRY' && intent === 'RESTOCK') return true;
   return false;

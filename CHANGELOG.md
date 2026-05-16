@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.2.1 — 2026-05-16
+
+### Features
+
+- replace all typed-keyword prompts with Block Kit buttons (完成 / 跳過 / 取消) across onboarding, restock, revert, and purge-expired flows (55d671f)
+
+### Bug Fixes
+
+- fix onboarding failing silently for large item batches — NLU max_tokens now scales by line count; compact JSON output format; ONBOARDING marked as free-form flow to bypass SESSION_INTERRUPT guard (8108f18)
+- rename banner createRequire alias to avoid collision with slack-adapter ESM import (d7adde2)
+- update stale test assertions for Block Kit button text changes (b92f6f9)
+
+### Other Changes
+
+- add reproduce-prod-issue skill (f4b716e)
+
 ## v1.2.0 — 2026-05-16
 
 ### Features

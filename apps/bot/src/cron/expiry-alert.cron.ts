@@ -1,9 +1,8 @@
 import cron from 'node-cron';
-import type { messagingApi } from '@line/bot-sdk';
 import { getExpiryAlertBatches } from '@life-helper/database/repositories';
 import { formatExpiryAlert } from '../lib/format.js';
 import { logger } from '../lib/logger.js';
-import { getRegisteredUsers } from '../services/user-registry.service.js';
+import type { AdapterConfig } from '../adapters/types.js';
 
 /**
  * Runs on the configured schedule (default 08:00 Asia/Taipei daily).
@@ -17,8 +16,7 @@ import { getRegisteredUsers } from '../services/user-registry.service.js';
  * A push message is sent whenever any category is non-empty.
  */
 export function scheduleExpiryAlertCron(
-  lineClient: messagingApi.MessagingApiClient,
-  groupId: string | undefined,
+  adapters: AdapterConfig[],
   expression = '0 8 * * *',
 ): cron.ScheduledTask {
   return cron.schedule(
@@ -34,12 +32,13 @@ export function scheduleExpiryAlertCron(
         }
 
         const message = formatExpiryAlert({ expired, expiresToday, expiresInWeek });
-        const userIds = await getRegisteredUsers();
-        const recipients = [...(groupId ? [groupId] : []), ...userIds];
         await Promise.all(
-          recipients.map((to) =>
-            lineClient.pushMessage({ to, messages: [{ type: 'text', text: message }] }),
-          ),
+          adapters.map(async ({ adapter, getChannelIds }) => {
+            const channelIds = await getChannelIds();
+            await Promise.all(
+              channelIds.map((id) => adapter.push(id, [{ type: 'text', text: message }])),
+            );
+          }),
         );
 
         logger.info(
@@ -47,7 +46,6 @@ export function scheduleExpiryAlertCron(
             expired: expired.length,
             expiresToday: expiresToday.length,
             expiresInWeek: expiresInWeek.length,
-            recipientCount: recipients.length,
           },
           'Expiry alert sent',
         );

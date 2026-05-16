@@ -1,7 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { routeIntent } from '../handlers/intent-router.js';
 import type { RouterContext } from '../handlers/intent-router.js';
-import type { WebhookEvent } from '@line/bot-sdk';
 
 // Mock database to keep tests unit-level
 vi.mock('@life-helper/database', () => ({
@@ -40,7 +39,6 @@ const mockClearSession = vi.mocked(clearSession);
 
 function makeCtx(overrides: Partial<RouterContext>): RouterContext {
   return {
-    event: {} as WebhookEvent,
     nluResult: {
       intent: 'UNKNOWN',
       entities: {},

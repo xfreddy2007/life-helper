@@ -11,15 +11,46 @@ import { logger } from './lib/logger.js';
 import { closeRedis } from './lib/redis.js';
 import { lineSignatureMiddleware } from './middleware/line-signature.js';
 import { NluService } from './services/nlu/nlu.service.js';
+import { getRegisteredUsers } from './services/user-registry.service.js';
 import { createWebhookRouter } from './routes/webhook.js';
 import { cronManager } from './cron/cron-manager.js';
+import { LineAdapter } from './adapters/line-adapter.js';
+import { SlackAdapter } from './adapters/slack-adapter.js';
+import type { AdapterConfig } from './adapters/types.js';
 
 const app = express();
+const nluService = new NluService(env.ANTHROPIC_API_KEY);
 
 // ── LINE clients (shared across webhook + cron) ────────────
 const lineClient = new messagingApi.MessagingApiClient({
   channelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN,
 });
+const lineAdapter = new LineAdapter(lineClient);
+
+// ── Slack adapter (optional — only when tokens are configured) ────
+const slackAdapter =
+  env.SLACK_BOT_TOKEN && env.SLACK_APP_TOKEN
+    ? new SlackAdapter(env.SLACK_BOT_TOKEN, env.SLACK_APP_TOKEN, nluService)
+    : null;
+
+// ── Adapter configs for cron push ──────────────────────────
+const adapterConfigs: AdapterConfig[] = [
+  {
+    adapter: lineAdapter,
+    getChannelIds: async () => {
+      const users = await getRegisteredUsers();
+      return [...(env.LINE_GROUP_ID ? [env.LINE_GROUP_ID] : []), ...users];
+    },
+  },
+  ...(slackAdapter && env.SLACK_DEFAULT_CHANNEL
+    ? [
+        {
+          adapter: slackAdapter,
+          getChannelIds: async () => (env.SLACK_DEFAULT_CHANNEL ? [env.SLACK_DEFAULT_CHANNEL] : []),
+        } satisfies AdapterConfig,
+      ]
+    : []),
+];
 
 // ── Health check (no auth required) ───────────────────────
 app.get('/health', (_req, res) => {
@@ -50,7 +81,7 @@ app.post(
 
 // 4. Mount the webhook router via app.use so Express strips '/webhook'
 //    and router.post('/') inside the router matches correctly.
-app.use('/webhook', createWebhookRouter(lineClient, new NluService(env.ANTHROPIC_API_KEY)));
+app.use('/webhook', createWebhookRouter(lineClient, nluService));
 
 // ── Global JSON parser for all other routes ────────────────
 app.use(express.json());
@@ -66,13 +97,22 @@ const server = createServer(app);
 server.listen(env.PORT, () => {
   logger.info({ port: env.PORT, nodeEnv: env.NODE_ENV }, 'Bot server started');
 
+  // Start Slack Socket Mode if configured
+  if (slackAdapter) {
+    void slackAdapter.start().catch((err) => {
+      logger.error({ err }, 'Slack adapter failed to start');
+    });
+  }
+
   // Start cron jobs after server is up (reads schedule from Redis config)
-  void cronManager.init(lineClient, env.LINE_GROUP_ID);
+  void cronManager.init(adapterConfigs);
 });
 
 // ── Graceful shutdown ──────────────────────────────────────
 async function shutdown(signal: string): Promise<void> {
   logger.info({ signal }, 'Shutting down...');
+  cronManager.stopAll();
+  if (slackAdapter) await slackAdapter.stop();
   server.close(async () => {
     await closeRedis();
     logger.info('Server closed');

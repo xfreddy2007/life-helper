@@ -1,4 +1,3 @@
-import type { WebhookEvent } from '@line/bot-sdk';
 import type { Intent, NluResult } from '../services/nlu/schema.js';
 import type { ConversationFlow, ConversationState } from '../services/session.js';
 import { handleQueryInventory } from './query-inventory.handler.js';
@@ -24,7 +23,6 @@ import { clearSession, setSession } from '../services/session.js';
 import { logger } from '../lib/logger.js';
 
 export interface RouterContext {
-  event: WebhookEvent;
   nluResult: NluResult;
   session: ConversationState | null;
   sourceId: string;
@@ -39,6 +37,13 @@ export type ReplyMessage = {
   type: 'text';
   text: string;
   quickReply?: { items: QuickReplyItem[] };
+};
+
+export const CONFIRM_CANCEL_QUICK_REPLY: NonNullable<ReplyMessage['quickReply']> = {
+  items: [
+    { type: 'action', action: { type: 'message', label: '確認', text: '確認' } },
+    { type: 'action', action: { type: 'message', label: '取消', text: '取消' } },
+  ],
 };
 
 // Intents that are always allowed through regardless of active session.
@@ -137,11 +142,8 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
     return [
       {
         type: 'text',
-        text:
-          `⚠️ 您目前有「${currentLabel}」正在進行中。\n\n` +
-          `要放棄目前操作並開始新的動作嗎？\n` +
-          `• 傳「確認」放棄目前操作\n` +
-          `• 傳「取消」繼續目前操作`,
+        text: `⚠️ 您目前有「${currentLabel}」正在進行中。\n\n` + `要放棄目前操作並開始新的動作嗎？`,
+        quickReply: CONFIRM_CANCEL_QUICK_REPLY,
       },
     ];
   }
@@ -166,7 +168,8 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
     return [
       {
         type: 'text',
-        text: '請傳「確認」放棄目前操作，或傳「取消」繼續目前操作。',
+        text: '請選擇「確認」放棄目前操作，或「取消」繼續目前操作。',
+        quickReply: CONFIRM_CANCEL_QUICK_REPLY,
       },
     ];
   }
@@ -189,7 +192,8 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
     return [
       {
         type: 'text',
-        text: '請傳「確認」清除並重新盤點，或傳「取消」放棄。',
+        text: '請選擇「確認」清除並重新盤點，或「取消」放棄。',
+        quickReply: CONFIRM_CANCEL_QUICK_REPLY,
       },
     ];
   }
@@ -211,7 +215,13 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
       const result = await handleAnomalyConfirmation(false, sourceId);
       if (result) return result;
     }
-    return [{ type: 'text', text: '請傳「確認」記錄此消耗，或傳「取消」放棄。' }];
+    return [
+      {
+        type: 'text',
+        text: '請選擇「確認」記錄此消耗，或「取消」放棄。',
+        quickReply: CONFIRM_CANCEL_QUICK_REPLY,
+      },
+    ];
   }
 
   // Restock expiry clarification flow
@@ -233,7 +243,13 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
       await clearSession(sourceId);
       return [{ type: 'text', text: '已取消，庫存未變動。' }];
     }
-    return [{ type: 'text', text: '請傳「確認」繼續重置，或傳「取消」放棄。' }];
+    return [
+      {
+        type: 'text',
+        text: '請選擇「確認」繼續重置，或「取消」放棄。',
+        quickReply: CONFIRM_CANCEL_QUICK_REPLY,
+      },
+    ];
   }
 
   // Purge expired items flow (step 0: selection, step 1: confirmation)

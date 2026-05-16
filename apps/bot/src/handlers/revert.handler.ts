@@ -5,6 +5,7 @@ import {
 } from '@life-helper/database/repositories';
 import { getSession, setSession, clearSession, newSession } from '../services/session.js';
 import type { ReplyMessage } from './intent-router.js';
+import { CONFIRM_CANCEL_QUICK_REPLY } from './intent-router.js';
 
 // ── Types stored in session ───────────────────────────────────
 
@@ -86,7 +87,8 @@ export async function handleRevertSelect(text: string, sourceId: string): Promis
     return [
       {
         type: 'text',
-        text: `確認要撤銷：\n「${selected.description}」\n\n• 傳「確認」執行撤銷\n• 傳「取消」放棄`,
+        text: `確認要撤銷：\n「${selected.description}」`,
+        quickReply: CONFIRM_CANCEL_QUICK_REPLY,
       },
     ];
   }
@@ -96,7 +98,13 @@ export async function handleRevertSelect(text: string, sourceId: string): Promis
     trimmed === '確認' || trimmed === 'yes' || trimmed === 'ok' || trimmed === '是';
 
   if (!isConfirmed) {
-    return [{ type: 'text', text: '請傳「確認」執行撤銷，或傳「取消」放棄。' }];
+    return [
+      {
+        type: 'text',
+        text: '請選擇「確認」執行撤銷，或「取消」放棄。',
+        quickReply: CONFIRM_CANCEL_QUICK_REPLY,
+      },
+    ];
   }
 
   const logId = session.data.selectedId as string;

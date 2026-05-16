@@ -13,6 +13,7 @@ import {
 import { getSession, setSession, clearSession, newSession } from '../services/session.js';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ReplyMessage } from './intent-router.js';
+import { CONFIRM_CANCEL_QUICK_REPLY } from './intent-router.js';
 import type { ConversationState } from '../services/session.js';
 
 // ── Types ──────────────────────────────────────────────────────
@@ -42,7 +43,8 @@ export async function handleStartOnboarding(sourceId: string): Promise<ReplyMess
   return [
     {
       type: 'text',
-      text: '⚠️ 重置庫存將清除所有現有庫存記錄，此操作無法復原。\n\n確認要繼續嗎？\n• 傳「確認」清除並開始重新盤點\n• 傳「取消」放棄',
+      text: '⚠️ 重置庫存將清除所有現有庫存記錄，此操作無法復原。\n\n確認要繼續嗎？',
+      quickReply: CONFIRM_CANCEL_QUICK_REPLY,
     },
   ];
 }
@@ -227,7 +229,8 @@ export async function handlePartialReset(
   return [
     {
       type: 'text',
-      text: `⚠️ 確認要重置以下物品的庫存嗎？\n\n${itemLines.join('\n')}\n\n此操作將清除所選物品的所有批次記錄。\n• 傳「確認」繼續\n• 傳「取消」放棄`,
+      text: `⚠️ 確認要重置以下物品的庫存嗎？\n\n${itemLines.join('\n')}\n\n此操作將清除所選物品的所有批次記錄。`,
+      quickReply: CONFIRM_CANCEL_QUICK_REPLY,
     },
   ];
 }

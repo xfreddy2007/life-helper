@@ -15,6 +15,7 @@ import { getSession, setSession, clearSession, newSession } from '../services/se
 import { formatDate } from '../lib/format.js';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ReplyMessage } from './intent-router.js';
+import { CONFIRM_CANCEL_QUICK_REPLY } from './intent-router.js';
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -146,7 +147,8 @@ export async function handleRecordConsumption(
       return [
         {
           type: 'text',
-          text: `⚠️ ${anomaly.message}\n\n確認要記錄嗎？\n• 傳「確認」繼續記錄\n• 傳「取消」放棄`,
+          text: `⚠️ ${anomaly.message}\n\n確認要記錄嗎？`,
+          quickReply: CONFIRM_CANCEL_QUICK_REPLY,
         },
       ];
     }
@@ -199,7 +201,8 @@ export async function handleRecordConsumption(
     return [
       {
         type: 'text',
-        text: `${prefix}⚠️ 「${first.itemName}」沒有到期日為 ${first.specifiedDate} 的庫存批次。\n\n目前批次：\n${first.batchLines}\n\n是否要消耗 ${first.quantity}${first.unit} 的現有庫存（依先進先出順序）？\n• 傳「確認」繼續\n• 傳「取消」放棄`,
+        text: `${prefix}⚠️ 「${first.itemName}」沒有到期日為 ${first.specifiedDate} 的庫存批次。\n\n目前批次：\n${first.batchLines}\n\n是否要消耗 ${first.quantity}${first.unit} 的現有庫存（依先進先出順序）？`,
+        quickReply: CONFIRM_CANCEL_QUICK_REPLY,
       },
     ];
   }
@@ -282,7 +285,8 @@ export async function handleAnomalyConfirmation(
     return [
       {
         type: 'text',
-        text: `✅ 已記錄「${pending.itemName}」\n\n⚠️ 「${next.itemName}」沒有到期日為 ${next.specifiedDate} 的庫存批次。\n\n目前批次：\n${next.batchLines}\n\n是否要消耗 ${next.quantity}${next.unit} 的現有庫存（依先進先出順序）？\n• 傳「確認」繼續\n• 傳「取消」放棄`,
+        text: `✅ 已記錄「${pending.itemName}」\n\n⚠️ 「${next.itemName}」沒有到期日為 ${next.specifiedDate} 的庫存批次。\n\n目前批次：\n${next.batchLines}\n\n是否要消耗 ${next.quantity}${next.unit} 的現有庫存（依先進先出順序）？`,
+        quickReply: CONFIRM_CANCEL_QUICK_REPLY,
       },
     ];
   }

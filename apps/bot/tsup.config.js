@@ -19,6 +19,6 @@ export default defineConfig({
   // Provide a require() shim so bundled CJS packages (e.g. dotenv) can call
   // require('fs') and other Node built-ins inside an ESM output file.
   banner: {
-    js: `import { createRequire } from 'module';\nconst require = createRequire(import.meta.url);`,
+    js: `import { createRequire as __cr } from 'module';\nconst require = __cr(import.meta.url);`,
   },
 });

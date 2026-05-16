@@ -6,6 +6,7 @@ import { setSession, clearSession, newSession } from '../services/session.js';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ConversationState } from '../services/session.js';
 import type { ReplyMessage } from './intent-router.js';
+import { CONFIRM_CANCEL_QUICK_REPLY } from './intent-router.js';
 
 // ── Internal types ────────────────────────────────────────────
 
@@ -130,7 +131,8 @@ export async function handlePurgeExpiredFlow(
         type: 'text',
         text:
           `確認清理以下過期批次？\n─────────────────\n${lines.join('\n')}\n─────────────────\n` +
-          `⚠️ 此操作不計入消耗記錄\n傳「確認」執行，或傳「取消」放棄`,
+          `⚠️ 此操作不計入消耗記錄`,
+        quickReply: CONFIRM_CANCEL_QUICK_REPLY,
       },
     ];
   }
@@ -140,7 +142,13 @@ export async function handlePurgeExpiredFlow(
     return executePurge(session, sourceId);
   }
 
-  return [{ type: 'text', text: '請傳「確認」執行清理，或傳「取消」放棄。' }];
+  return [
+    {
+      type: 'text',
+      text: '請選擇「確認」執行清理，或「取消」放棄。',
+      quickReply: CONFIRM_CANCEL_QUICK_REPLY,
+    },
+  ];
 }
 
 // ── Internal helpers ──────────────────────────────────────────

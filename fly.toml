@@ -7,13 +7,11 @@ primary_region = "sin"
   PORT = "3000"
   NODE_ENV = "production"
 
-# Run migrations then seed default categories before each new version goes live.
+# Run `prisma migrate deploy` before each new version goes live.
 # Fly executes this in a temporary machine with full image access before
 # routing traffic to the updated app machines.
-# The seed uses upsert so it is safe to re-run; it only inserts categories
-# that do not already exist.
 [deploy]
-  release_command = "node node_modules/.bin/prisma migrate deploy --schema packages/database/prisma/schema.prisma && node_modules/.bin/tsx packages/database/prisma/seed/seed.ts"
+  release_command = "node node_modules/.bin/prisma migrate deploy --schema packages/database/prisma/schema.prisma"
 
 [http_service]
   internal_port = 3000

@@ -96,8 +96,7 @@ export async function handleRevertSelect(text: string, sourceId: string): Promis
   }
 
   // ── Step 1: awaiting confirm/cancel ──────────────────────
-  const isConfirmed =
-    trimmed === '確認' || trimmed === 'yes' || trimmed === 'ok' || trimmed === '是';
+  const isConfirmed = /^確認|^yes|^ok|^是/.test(trimmed);
 
   if (!isConfirmed) {
     return [

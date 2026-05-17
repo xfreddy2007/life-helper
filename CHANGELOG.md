@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.2 — 2026-05-17
+
+### Bug Fixes
+
+- disable auto_stop_machines to keep cron bot always running — production machine stopped after v1.2.0 crash loop and cron notifications never fired (f254ce0)
+
 ## v1.2.1 — 2026-05-16
 
 ### Features

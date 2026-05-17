@@ -104,7 +104,7 @@ function isSameContinuation(flow: ConversationFlow, intent: Intent): boolean {
   return false;
 }
 
-const FEATURES_QUICK_REPLY_ITEMS: QuickReplyItem[] = [
+export const FEATURES_QUICK_REPLY_ITEMS: QuickReplyItem[] = [
   { type: 'action', action: { type: 'message', label: '庫存盤點', text: '開始盤點' } },
   { type: 'action', action: { type: 'message', label: '查詢庫存', text: '查詢庫存' } },
   { type: 'action', action: { type: 'message', label: '記錄消耗', text: '記錄消耗' } },

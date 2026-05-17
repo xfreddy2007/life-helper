@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.3.0 — 2026-05-17
+
+### Bug Fixes
+
+- seed default categories via data migration so production inventory works on first deploy (2602bbd)
+
 ## v1.2.3 — 2026-05-17
 
 ### Features

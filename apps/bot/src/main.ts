@@ -30,7 +30,12 @@ const lineAdapter = new LineAdapter(lineClient);
 // ── Slack adapter (optional — only when tokens are configured) ────
 const slackAdapter =
   env.SLACK_BOT_TOKEN && env.SLACK_APP_TOKEN
-    ? new SlackAdapter(env.SLACK_BOT_TOKEN, env.SLACK_APP_TOKEN, nluService)
+    ? new SlackAdapter(
+        env.SLACK_BOT_TOKEN,
+        env.SLACK_APP_TOKEN,
+        nluService,
+        env.SLACK_DEFAULT_CHANNEL,
+      )
     : null;
 
 // ── Adapter configs for cron push ──────────────────────────

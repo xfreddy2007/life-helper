@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.3 — 2026-05-17
+
+### Features
+
+- add App Home tab and route button actions to default channel (f45fa63)
+
 ## v1.2.2 — 2026-05-17
 
 ### Bug Fixes

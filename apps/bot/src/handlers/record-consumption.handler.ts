@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { prisma } from '@life-helper/database';
 import type { ExpiryBatch } from '@life-helper/database';
 import {
@@ -54,6 +55,9 @@ export async function handleRecordConsumption(
       },
     ];
   }
+
+  // Single UUID groups all items from this message so they can be batch-reverted together.
+  const batchId = randomUUID();
 
   const results: string[] = [];
   let anyConsumed = false;
@@ -142,7 +146,7 @@ export async function handleRecordConsumption(
         expiryDate: expiryDate ?? undefined,
       };
       const session = newSession('RESTOCK_CONFIRM');
-      session.data = { pendingConsumption: pending };
+      session.data = { pendingConsumption: pending, batchId };
       await setSession(sourceId, session);
 
       return [
@@ -164,6 +168,7 @@ export async function handleRecordConsumption(
       itemUnit,
       expiryDate ? new Date(expiryDate) : undefined,
       sourceId,
+      batchId,
     );
     results.push(line);
     anyConsumed = true;
@@ -198,6 +203,7 @@ export async function handleRecordConsumption(
       },
       mismatchQueue: queue,
       completedLines: results,
+      batchId,
     };
     await setSession(sourceId, sess);
 
@@ -232,6 +238,7 @@ export async function handleAnomalyConfirmation(
   const pending = session.data['pendingConsumption'] as PendingConsumption;
   const mismatchQueue = (session.data['mismatchQueue'] as PendingMismatch[] | undefined) ?? [];
   const completedLines = (session.data['completedLines'] as string[] | undefined) ?? [];
+  const batchId = session.data['batchId'] as string | undefined;
   const isMismatchFlow = 'mismatchQueue' in session.data;
 
   await clearSession(sourceId);
@@ -264,6 +271,7 @@ export async function handleAnomalyConfirmation(
     item.units[0] ?? pending.unit,
     pending.expiryDate ? new Date(pending.expiryDate) : undefined,
     sourceId,
+    batchId,
   );
 
   const allLines = [...completedLines, line];
@@ -283,6 +291,7 @@ export async function handleAnomalyConfirmation(
       },
       mismatchQueue: remaining,
       completedLines: allLines,
+      batchId,
     };
     await setSession(sourceId, sess);
 
@@ -320,6 +329,7 @@ async function executeConsumption(
   itemUnit: string,
   preferredExpiry: Date | undefined,
   sourceId: string,
+  batchId?: string,
 ): Promise<string> {
   // Convert consumption quantity to item's storage unit if units differ
   const converted = convertUnit(quantity, unit, itemUnit);
@@ -359,6 +369,7 @@ async function executeConsumption(
     try {
       await createOperationLog(sourceId, 'CONSUME', `消耗 ${itemName} -${quantity}${unit}`, {
         type: 'CONSUME',
+        batchId,
         itemId,
         itemName,
         totalDeducted: deduction.totalDeducted,

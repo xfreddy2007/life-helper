@@ -13,6 +13,7 @@ import {
 } from '../services/anomaly.service.js';
 import { getSession, setSession, clearSession, newSession } from '../services/session.js';
 import { formatDate } from '../lib/format.js';
+import { logger } from '../lib/logger.js';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ReplyMessage } from './intent-router.js';
 import { CONFIRM_CANCEL_QUICK_REPLY } from './intent-router.js';
@@ -167,14 +168,17 @@ export async function handleRecordConsumption(
     results.push(line);
     anyConsumed = true;
 
-    // Update consumption rate
-    const allLogs = await getRecentConsumptionLogs(item.id, 30);
-    const newRate = calculateWeeklyConsumptionRate(allLogs);
-    if (newRate !== null) {
-      await prisma.item.update({
-        where: { id: item.id },
-        data: { consumptionRate: newRate },
-      });
+    try {
+      const allLogs = await getRecentConsumptionLogs(item.id, 30);
+      const newRate = calculateWeeklyConsumptionRate(allLogs);
+      if (newRate !== null) {
+        await prisma.item.update({
+          where: { id: item.id },
+          data: { consumptionRate: newRate },
+        });
+      }
+    } catch (err) {
+      logger.warn({ err, itemId: item.id }, 'consumption rate update failed after commit');
     }
   }
 
@@ -351,26 +355,29 @@ async function executeConsumption(
     consumptionLogId = log.id;
   });
 
-  // Log the operation for potential reversal (non-blocking)
   if (deduction.totalDeducted > 0) {
-    await createOperationLog(sourceId, 'CONSUME', `消耗 ${itemName} -${quantity}${unit}`, {
-      type: 'CONSUME',
-      itemId,
-      itemName,
-      totalDeducted: deduction.totalDeducted,
-      itemUnit,
-      consumptionLogId,
-      steps: deduction.plan.map((step) => {
-        const b = batchMap.get(step.batchId);
-        return {
-          batchId: step.batchId,
-          deducted: step.deductQty,
-          unit: b?.unit ?? itemUnit,
-          expiryDate: b?.expiryDate?.toISOString() ?? null,
-          wasDeleted: step.remainingQty <= 0,
-        };
-      }),
-    });
+    try {
+      await createOperationLog(sourceId, 'CONSUME', `消耗 ${itemName} -${quantity}${unit}`, {
+        type: 'CONSUME',
+        itemId,
+        itemName,
+        totalDeducted: deduction.totalDeducted,
+        itemUnit,
+        consumptionLogId,
+        steps: deduction.plan.map((step) => {
+          const b = batchMap.get(step.batchId);
+          return {
+            batchId: step.batchId,
+            deducted: step.deductQty,
+            unit: b?.unit ?? itemUnit,
+            expiryDate: b?.expiryDate?.toISOString() ?? null,
+            wasDeleted: step.remainingQty <= 0,
+          };
+        }),
+      });
+    } catch (err) {
+      logger.warn({ err, itemId, itemName }, 'createOperationLog failed after consumption commit');
+    }
   }
 
   if (deduction.shortfall > 0) {

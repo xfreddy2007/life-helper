@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.3.1 — 2026-05-19
+
+### Features
+
+- Group batch consumption into one reversible session with timestamp display (cceafe5)
+
+### Bug Fixes
+
+- Prevent false error message when post-commit operations fail after consumption (6927b59)
+
+### Other Changes
+
+- Fix wrong working directory paths in skills and add D4/F2 e2e test cases (0ca4ce4)
+
 ## v1.3.0 — 2026-05-17
 
 ### Bug Fixes

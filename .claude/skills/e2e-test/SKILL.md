@@ -41,20 +41,20 @@ Stop them and wipe the bind-mount data dir (`./db-data` is a bind mount so `-v` 
 does not clear Postgres data — the directory must be deleted for a clean DB):
 
 ```bash
-docker compose -f /Users/xfreddy2007/Desktop/life-helper/docker-compose.yml down 2>&1
-rm -rf /Users/xfreddy2007/Desktop/life-helper/db-data
+docker compose -f /Users/xfreddy2007/Documents/Self-projects/life-helper/docker-compose.yml down 2>&1
+rm -rf /Users/xfreddy2007/Documents/Self-projects/life-helper/db-data
 ```
 
 Start fresh containers and wait until both are healthy:
 
 ```bash
-docker compose -f /Users/xfreddy2007/Desktop/life-helper/docker-compose.yml up -d 2>&1
+docker compose -f /Users/xfreddy2007/Documents/Self-projects/life-helper/docker-compose.yml up -d 2>&1
 ```
 
 Poll until both Postgres and Redis pass their health checks (up to 60 seconds):
 
 ```bash
-until docker compose -f /Users/xfreddy2007/Desktop/life-helper/docker-compose.yml ps | grep -E "postgres|redis" | grep -v "healthy" | wc -l | grep -q "^0$"; do
+until docker compose -f /Users/xfreddy2007/Documents/Self-projects/life-helper/docker-compose.yml ps | grep -E "postgres|redis" | grep -v "healthy" | wc -l | grep -q "^0$"; do
   sleep 2
 done
 ```
@@ -68,7 +68,7 @@ If not healthy after 60 s, abort:
 ## Step 2 — Run DB migrations and seed
 
 ```bash
-cd /Users/xfreddy2007/Desktop/life-helper/packages/database && \
+cd /Users/xfreddy2007/Documents/Self-projects/life-helper/packages/database && \
   DATABASE_URL="postgresql://lifehelper:lifehelper_dev@localhost:5432/life_helper" \
   npx prisma migrate deploy 2>&1
 ```
@@ -80,7 +80,7 @@ If migrations fail, abort:
 Then seed the default categories (required for item creation to work):
 
 ```bash
-cd /Users/xfreddy2007/Desktop/life-helper/packages/database && \
+cd /Users/xfreddy2007/Documents/Self-projects/life-helper/packages/database && \
   DATABASE_URL="postgresql://lifehelper:lifehelper_dev@localhost:5432/life_helper" \
   npx tsx prisma/seed/seed.ts 2>&1
 ```
@@ -89,16 +89,17 @@ cd /Users/xfreddy2007/Desktop/life-helper/packages/database && \
 
 ## Step 3 — Start dev server
 
-Kill any process already on port 3000:
+Kill any process already on port 3000 (including stale tsx watch processes):
 
 ```bash
+pkill -f "tsx.*main.ts" 2>/dev/null
 lsof -ti :3000 | xargs kill -9 2>/dev/null; sleep 1
 ```
 
 Start the dev server in the background from the repo root:
 
 ```bash
-cd /Users/xfreddy2007/Desktop/life-helper && npm run dev > /tmp/life-helper-dev.log 2>&1 &
+cd /Users/xfreddy2007/Documents/Self-projects/life-helper && npx tsx apps/bot/src/main.ts > /tmp/life-helper-dev.log 2>&1 &
 echo $! > /tmp/life-helper-dev.pid
 ```
 
@@ -238,6 +239,15 @@ to click the button instead of typing text:
 - Input: `白米還有多少`
 - Expected: bot reply contains `白米` and quantity less than the pre-consumption amount (confirms D1 deducted correctly)
 
+**D4 — Batch consumption groups into one revert entry**
+
+- Input: `今天消耗：橄欖油 50ml、白米 200g`
+- Expected: bot reply contains `消耗記錄完成` and lists `橄欖油 -50ml` and `白米 -200g`
+- Follow-up input: `撤銷操作`
+- Expected follow-up reply: first entry in the list contains `消耗批次（2 項）` with timestamp prefix and both item names (confirms batch grouping in revert list)
+- Follow-up input: `取消` (abort the revert — preserves state for F2)
+- Expected: `已取消撤銷操作`
+
 #### Group E — SESSION_INTERRUPT (conflict guard)
 
 **E1 — Interrupt mid-onboarding**
@@ -272,7 +282,18 @@ to click the button instead of typing text:
 - Follow-up: `[BUTTON CLICK: 確認]` — use the Block Kit Button Click Procedure above
   - Clicking the button sends the exact string `"確認"` without any MCP suffix, bypassing the
     previous MCP limitation entirely
-- Expected follow-up reply: contains `撤銷成功` or `已還原`
+- Expected follow-up reply: contains `已撤銷消耗` or `已撤銷補貨` (single-item revert response)
+
+**F2 — Batch revert (multi-item consumption session)**
+
+- Pre-condition: send a two-item consumption first: `今天消耗：橄欖油 50ml、白米 200g`
+- Expected: bot replies with `消耗記錄完成` and lists both items
+- Input: `撤銷操作`
+- Expected: bot lists recent operations; first entry contains `消耗批次` and both item names with timestamp prefix e.g. `[MM/DD HH:mm] 消耗批次（2 項）：橄欖油 -50ml、白米 -200g`
+- Follow-up input: `1`
+- Expected follow-up reply: bot shows confirmation `確認要撤銷：「[…] 消耗批次（2 項）…」` with Block Kit 確認/取消 buttons
+- Follow-up: `確認` (or `[BUTTON CLICK: 確認]`)
+- Expected follow-up reply: contains `批次撤銷完成（2 項）` and lists both restored quantities
 
 #### Group G — PURGE_EXPIRED
 

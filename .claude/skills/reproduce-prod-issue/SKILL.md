@@ -70,8 +70,9 @@ docker ps --filter "name=life-helper" --format "{{.Names}}" 2>/dev/null
 **If the server is down**, start it:
 
 ```bash
+pkill -f "tsx.*main.ts" 2>/dev/null
 lsof -ti :3000 | xargs kill -9 2>/dev/null; sleep 1
-cd /Users/xfreddy2007/Desktop/life-helper && npm run dev > /tmp/life-helper-dev.log 2>&1 &
+cd /Users/xfreddy2007/Documents/Self-projects/life-helper && npx tsx apps/bot/src/main.ts > /tmp/life-helper-dev.log 2>&1 &
 until curl -sf http://localhost:3000/health > /dev/null 2>&1; do sleep 2; done
 echo "Server up"
 ```
@@ -79,16 +80,16 @@ echo "Server up"
 **If Docker containers are missing**, start them and run migrations:
 
 ```bash
-docker compose -f /Users/xfreddy2007/Desktop/life-helper/docker-compose.yml up -d 2>&1
+docker compose -f /Users/xfreddy2007/Documents/Self-projects/life-helper/docker-compose.yml up -d 2>&1
 # wait for healthy
 for i in $(seq 1 30); do
-  unhealthy=$(docker compose -f /Users/xfreddy2007/Desktop/life-helper/docker-compose.yml ps 2>/dev/null \
+  unhealthy=$(docker compose -f /Users/xfreddy2007/Documents/Self-projects/life-helper/docker-compose.yml ps 2>/dev/null \
     | grep -E "postgres|redis" | grep -v "healthy" | wc -l)
   [ "$unhealthy" -eq 0 ] && echo "✅ Containers healthy" && break
   sleep 2
 done
 # migrate + seed
-cd /Users/xfreddy2007/Desktop/life-helper/packages/database && \
+cd /Users/xfreddy2007/Documents/Self-projects/life-helper/packages/database && \
   DATABASE_URL="postgresql://lifehelper:lifehelper_dev@localhost:5432/life_helper" \
   npx prisma migrate deploy 2>&1
 DATABASE_URL="postgresql://lifehelper:lifehelper_dev@localhost:5432/life_helper" \
@@ -185,8 +186,10 @@ procedure as the e2e-test skill (Slack MCP messages + 8 s waits + channel reads)
 | QUERY_INVENTORY                             | A2, C1, C2 |
 | RESTOCK flow                                | B1, B2, B3 |
 | RECORD_CONSUMPTION / anomaly detection      | D1, D2, D3 |
+| RECORD_CONSUMPTION batch grouping / revert  | D4, F2     |
 | Session conflict guard (SESSION_INTERRUPT)  | E1, E2     |
-| REVERT_OPERATION                            | F1         |
+| REVERT_OPERATION (single)                   | F1         |
+| REVERT_OPERATION (batch)                    | F2         |
 | PURGE_EXPIRED                               | G1         |
 | SET_CONFIG                                  | H1         |
 | START_ONBOARDING / RESET_CONFIRM            | A2, E1     |
@@ -210,7 +213,30 @@ All targeted tests passed. Fix is verified.
 
 ---
 
-## Step 8 — Push the fix
+## Step 8 — Add test cases to the e2e-test skill
+
+After every fix, add one or more test cases to
+`.claude/skills/e2e-test/SKILL.md` so the issue can never silently regress.
+
+**What to add:**
+
+- A new test case in the group that matches the affected feature (D for
+  RECORD_CONSUMPTION, F for REVERT_OPERATION, etc.)
+- Use the next available ID in that group (e.g. D4 if D3 already exists)
+- Cover the exact input that triggered the issue **and** the expected
+  good-path response after the fix
+- If the fix introduced a new multi-step flow or changed existing
+  confirmation behaviour, add a cancel-path test too
+
+**Where to place it:** immediately after the last test case in the
+matching group, before the next group header.
+
+Commit the skill update on `dev` together with the code fix, or as a
+follow-up commit in the same session.
+
+---
+
+## Step 9 — Push the fix
 
 ```bash
 git push origin dev

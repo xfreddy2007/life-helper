@@ -14,6 +14,7 @@ export interface RestockReversal {
 
 export interface ConsumeReversal {
   type: 'CONSUME';
+  batchId?: string;
   itemId: string;
   itemName: string;
   totalDeducted: number;

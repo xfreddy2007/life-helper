@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { prisma } from '@life-helper/database';
 import type { ExpiryBatch } from '@life-helper/database';
 import {
@@ -13,6 +14,7 @@ import {
 } from '../services/anomaly.service.js';
 import { getSession, setSession, clearSession, newSession } from '../services/session.js';
 import { formatDate } from '../lib/format.js';
+import { logger } from '../lib/logger.js';
 import type { NluResult } from '../services/nlu/schema.js';
 import type { ReplyMessage } from './intent-router.js';
 import { CONFIRM_CANCEL_QUICK_REPLY } from './intent-router.js';
@@ -53,6 +55,9 @@ export async function handleRecordConsumption(
       },
     ];
   }
+
+  // Single UUID groups all items from this message so they can be batch-reverted together.
+  const batchId = randomUUID();
 
   const results: string[] = [];
   let anyConsumed = false;
@@ -141,7 +146,7 @@ export async function handleRecordConsumption(
         expiryDate: expiryDate ?? undefined,
       };
       const session = newSession('RESTOCK_CONFIRM');
-      session.data = { pendingConsumption: pending };
+      session.data = { pendingConsumption: pending, batchId };
       await setSession(sourceId, session);
 
       return [
@@ -163,18 +168,22 @@ export async function handleRecordConsumption(
       itemUnit,
       expiryDate ? new Date(expiryDate) : undefined,
       sourceId,
+      batchId,
     );
     results.push(line);
     anyConsumed = true;
 
-    // Update consumption rate
-    const allLogs = await getRecentConsumptionLogs(item.id, 30);
-    const newRate = calculateWeeklyConsumptionRate(allLogs);
-    if (newRate !== null) {
-      await prisma.item.update({
-        where: { id: item.id },
-        data: { consumptionRate: newRate },
-      });
+    try {
+      const allLogs = await getRecentConsumptionLogs(item.id, 30);
+      const newRate = calculateWeeklyConsumptionRate(allLogs);
+      if (newRate !== null) {
+        await prisma.item.update({
+          where: { id: item.id },
+          data: { consumptionRate: newRate },
+        });
+      }
+    } catch (err) {
+      logger.warn({ err, itemId: item.id }, 'consumption rate update failed after commit');
     }
   }
 
@@ -194,6 +203,7 @@ export async function handleRecordConsumption(
       },
       mismatchQueue: queue,
       completedLines: results,
+      batchId,
     };
     await setSession(sourceId, sess);
 
@@ -228,6 +238,7 @@ export async function handleAnomalyConfirmation(
   const pending = session.data['pendingConsumption'] as PendingConsumption;
   const mismatchQueue = (session.data['mismatchQueue'] as PendingMismatch[] | undefined) ?? [];
   const completedLines = (session.data['completedLines'] as string[] | undefined) ?? [];
+  const batchId = session.data['batchId'] as string | undefined;
   const isMismatchFlow = 'mismatchQueue' in session.data;
 
   await clearSession(sourceId);
@@ -260,6 +271,7 @@ export async function handleAnomalyConfirmation(
     item.units[0] ?? pending.unit,
     pending.expiryDate ? new Date(pending.expiryDate) : undefined,
     sourceId,
+    batchId,
   );
 
   const allLines = [...completedLines, line];
@@ -279,6 +291,7 @@ export async function handleAnomalyConfirmation(
       },
       mismatchQueue: remaining,
       completedLines: allLines,
+      batchId,
     };
     await setSession(sourceId, sess);
 
@@ -316,6 +329,7 @@ async function executeConsumption(
   itemUnit: string,
   preferredExpiry: Date | undefined,
   sourceId: string,
+  batchId?: string,
 ): Promise<string> {
   // Convert consumption quantity to item's storage unit if units differ
   const converted = convertUnit(quantity, unit, itemUnit);
@@ -351,26 +365,30 @@ async function executeConsumption(
     consumptionLogId = log.id;
   });
 
-  // Log the operation for potential reversal (non-blocking)
   if (deduction.totalDeducted > 0) {
-    await createOperationLog(sourceId, 'CONSUME', `消耗 ${itemName} -${quantity}${unit}`, {
-      type: 'CONSUME',
-      itemId,
-      itemName,
-      totalDeducted: deduction.totalDeducted,
-      itemUnit,
-      consumptionLogId,
-      steps: deduction.plan.map((step) => {
-        const b = batchMap.get(step.batchId);
-        return {
-          batchId: step.batchId,
-          deducted: step.deductQty,
-          unit: b?.unit ?? itemUnit,
-          expiryDate: b?.expiryDate?.toISOString() ?? null,
-          wasDeleted: step.remainingQty <= 0,
-        };
-      }),
-    });
+    try {
+      await createOperationLog(sourceId, 'CONSUME', `消耗 ${itemName} -${quantity}${unit}`, {
+        type: 'CONSUME',
+        batchId,
+        itemId,
+        itemName,
+        totalDeducted: deduction.totalDeducted,
+        itemUnit,
+        consumptionLogId,
+        steps: deduction.plan.map((step) => {
+          const b = batchMap.get(step.batchId);
+          return {
+            batchId: step.batchId,
+            deducted: step.deductQty,
+            unit: b?.unit ?? itemUnit,
+            expiryDate: b?.expiryDate?.toISOString() ?? null,
+            wasDeleted: step.remainingQty <= 0,
+          };
+        }),
+      });
+    } catch (err) {
+      logger.warn({ err, itemId, itemName }, 'createOperationLog failed after consumption commit');
+    }
   }
 
   if (deduction.shortfall > 0) {

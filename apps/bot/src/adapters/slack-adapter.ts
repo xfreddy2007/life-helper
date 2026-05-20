@@ -10,6 +10,7 @@ import type { MessagingAdapter } from './types.js';
 import type { ReplyMessage, QuickReplyItem } from '../handlers/intent-router.js';
 import { FEATURES_QUICK_REPLY_ITEMS } from '../handlers/intent-router.js';
 import type { NluService } from '../services/nlu/nlu.service.js';
+import { NluUnavailableError } from '../services/nlu/nlu.service.js';
 import { processTextMessage } from '../routes/message-processor.js';
 import { logger } from '../lib/logger.js';
 
@@ -126,7 +127,11 @@ export class SlackAdapter implements MessagingAdapter {
       }
     } catch (err) {
       logger.error({ err, channelId, text }, 'Slack message processing error');
-      await say('系統暫時無法處理您的請求，請稍後再試 🙏');
+      await say(
+        err instanceof NluUnavailableError
+          ? 'AI 服務暫時忙碌，請稍後 30 秒再試 🙏'
+          : '系統暫時無法處理您的請求，請稍後再試 🙏',
+      );
     }
   }
 
@@ -165,6 +170,13 @@ export class SlackAdapter implements MessagingAdapter {
         }
       } catch (err) {
         logger.error({ err, userId, value }, 'App Home action processing error');
+        await client.chat.postMessage({
+          channel: targetChannel,
+          text:
+            err instanceof NluUnavailableError
+              ? 'AI 服務暫時忙碌，請稍後 30 秒再試 🙏'
+              : '系統暫時無法處理您的請求，請稍後再試 🙏',
+        });
       }
     });
 
@@ -229,7 +241,10 @@ export class SlackAdapter implements MessagingAdapter {
         logger.error({ err, channelId, value }, 'Slack action processing error');
         await client.chat.postMessage({
           channel: channelId,
-          text: '系統暫時無法處理您的請求，請稍後再試 🙏',
+          text:
+            err instanceof NluUnavailableError
+              ? 'AI 服務暫時忙碌，請稍後 30 秒再試 🙏'
+              : '系統暫時無法處理您的請求，請稍後再試 🙏',
         });
       }
     });

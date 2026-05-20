@@ -122,7 +122,7 @@ describe('formatDailyConfirm', () => {
     expect(text).toContain('白米');
     expect(text).toContain('橄欖油');
     expect(text).toContain('今日消耗確認');
-    expect(text).toContain('明早 7 點');
+    expect(text).toContain('庫存將不會自動更新');
   });
 
   it('handles a single item', () => {

@@ -163,7 +163,7 @@ export function formatDailyConfirm(estimates: DailyEstimateEntry[]): string {
 
   lines.push('─────────────────');
   lines.push('實際用量不同請直接回覆，例：「今天用了醬油 20ml」');
-  lines.push('若沒有回覆，明早 7 點將自動套用預估值。');
+  lines.push('若沒有回覆，庫存將不會自動更新。');
 
   return lines.join('\n');
 }

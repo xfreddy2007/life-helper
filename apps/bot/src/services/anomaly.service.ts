@@ -73,7 +73,8 @@ export function calculateWeeklyConsumptionRate(logs: ConsumptionLog[]): number |
   if (spanMs <= 0) return null;
 
   const totalQty = sorted.reduce((sum, l) => sum + l.quantity, 0);
-  const spanWeeks = spanMs / (7 * 24 * 60 * 60 * 1000);
+  // Use at least 1 week as denominator to prevent rate explosion when logs are close together
+  const spanWeeks = Math.max(spanMs / (7 * 24 * 60 * 60 * 1000), 1);
 
   return totalQty / spanWeeks;
 }

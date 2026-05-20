@@ -2,6 +2,13 @@ import Anthropic from '@anthropic-ai/sdk';
 import { logger } from '../../lib/logger.js';
 import { NluResultSchema, type NluResult } from './schema.js';
 
+export class NluUnavailableError extends Error {
+  constructor() {
+    super('Anthropic API overloaded (HTTP 529)');
+    this.name = 'NluUnavailableError';
+  }
+}
+
 const SYSTEM_PROMPT = `你是「居家生活小幫手」LINE Bot 的自然語言理解模組。
 你的任務是解析使用者傳入的訊息，辨識意圖並萃取結構化實體資料。
 
@@ -66,7 +73,7 @@ export class NluService {
   private client: Anthropic;
 
   constructor(apiKey: string) {
-    this.client = new Anthropic({ apiKey });
+    this.client = new Anthropic({ apiKey, maxRetries: 4 });
   }
 
   async parse(text: string): Promise<NluResult> {
@@ -74,19 +81,29 @@ export class NluService {
     // compact JSON; add 512 base for the JSON envelope + rawText. Floor at 1024.
     const lineCount = text.split('\n').length;
     const maxTokens = Math.min(8192, Math.max(1024, lineCount * 80 + 512));
-    const response = await this.client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: maxTokens,
-      system: [
-        {
-          type: 'text',
-          text: SYSTEM_PROMPT,
-          // Enable prompt caching — the system prompt is static and large
-          cache_control: { type: 'ephemeral' },
-        },
-      ],
-      messages: [{ role: 'user', content: text }],
-    });
+
+    let response: Awaited<ReturnType<typeof this.client.messages.create>>;
+    try {
+      response = await this.client.messages.create({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: maxTokens,
+        system: [
+          {
+            type: 'text',
+            text: SYSTEM_PROMPT,
+            // Enable prompt caching — the system prompt is static and large
+            cache_control: { type: 'ephemeral' },
+          },
+        ],
+        messages: [{ role: 'user', content: text }],
+      });
+    } catch (err) {
+      if (err instanceof Anthropic.InternalServerError && err.status === 529) {
+        logger.warn({ text }, 'NLU: Anthropic API overloaded');
+        throw new NluUnavailableError();
+      }
+      throw err;
+    }
 
     const block = response.content[0];
     if (!block || block.type !== 'text') {

@@ -187,6 +187,13 @@ to click the button instead of typing text:
 - Input: `採購清單`
 - Expected: bot replies (any non-error response about purchase list)
 
+**A5 — NLU overload error message (regression guard)**
+
+- Note: cannot simulate HTTP 529 in e2e; verify via log inspection instead
+- After any message is sent and bot responds successfully, check `/tmp/life-helper-dev.log` for absence of `NluUnavailableError` to confirm the happy path still works
+- If the bot ever returns `AI 服務暫時忙碌` that means `NluUnavailableError` was thrown correctly — check Anthropic API status; it is NOT a code bug
+- Expected happy path: bot replies with intent-matched response, NOT the overload message
+
 #### Group B — RESTOCK flow
 
 **B1 — Unit mismatch detection**

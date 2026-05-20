@@ -82,4 +82,33 @@ describe('calculateWeeklyConsumptionRate', () => {
     // 10 cups / 4 weeks = 2.5 cups/week
     expect(rate).toBeGreaterThan(0);
   });
+
+  it('caps rate at total/week when logs are recorded within seconds', () => {
+    // Two logs seconds apart — old formula would divide by near-zero span
+    // Fix: denominator is clamped to min 1 week, so rate = totalQty / 1 week
+    const now = Date.now();
+    const log1: ConsumptionLog = {
+      id: 'a',
+      itemId: 'x',
+      quantity: 3,
+      unit: '顆',
+      expiryDate: null,
+      note: null,
+      isEstimated: false,
+      consumedAt: new Date(now - 30_000),
+    };
+    const log2: ConsumptionLog = {
+      id: 'b',
+      itemId: 'x',
+      quantity: 7,
+      unit: '顆',
+      expiryDate: null,
+      note: null,
+      isEstimated: false,
+      consumedAt: new Date(now),
+    };
+    const rate = calculateWeeklyConsumptionRate([log1, log2]);
+    // Without fix: 10 / (30s in weeks) ≈ 20 million. With fix: 10 / 1 = 10
+    expect(rate).toBeCloseTo(10, 0);
+  });
 });

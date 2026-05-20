@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.4.0 — 2026-05-20
+
+### Bug Fixes
+
+- clamp weekly consumption rate denominator to min 1 week — prevents absurd estimates (2607 onions/day) from logs recorded seconds apart (b149855)
+- remove auto-inventory-deduction on no-reply to daily confirm; send reminder only (b149855)
+- add `NluUnavailableError` for Anthropic HTTP 529 overloaded responses; increase maxRetries to 4; fix App Home action silently swallowing errors (5774de4)
+
+### Other Changes
+
+- update daily confirm footer: inventory will not auto-update if no reply (b149855)
+- add D5, A5 e2e regression test notes for daily-confirm and NLU overload (38c7fa5, 2bf71d5)
+- bump version to 1.4.0 (d1f2b5c)
+
 ## v1.3.1 — 2026-05-19
 
 ### Features

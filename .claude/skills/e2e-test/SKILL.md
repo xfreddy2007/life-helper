@@ -248,6 +248,12 @@ to click the button instead of typing text:
 - Follow-up input: `取消` (abort the revert — preserves state for F2)
 - Expected: `已取消撤銷操作`
 
+**D5 — Daily confirm message does not promise auto-deduction**
+
+- Pre-condition: the daily confirm push cron fires (or check the last scheduled message in the channel)
+- Expected: the daily confirm message footer contains `庫存將不會自動更新` and does NOT contain `自動套用預估值`
+- Purpose: regression guard — ensures the removed auto-deduction promise stays removed
+
 #### Group E — SESSION_INTERRUPT (conflict guard)
 
 **E1 — Interrupt mid-onboarding**

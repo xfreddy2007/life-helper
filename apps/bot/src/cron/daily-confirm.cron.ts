@@ -2,10 +2,8 @@ import cron from 'node-cron';
 import { listItems } from '@life-helper/database/repositories';
 import {
   buildDailyEstimates,
-  applyDailyEstimates,
   setDailyConfirmSent,
   isDailyConfirmPending,
-  incrementNoReplyStreak,
   resetNoReplyStreak,
   todayString,
 } from '../services/daily-confirm.service.js';
@@ -63,7 +61,7 @@ export function scheduleDailyConfirmCrons(
     { timezone: 'Asia/Taipei' },
   );
 
-  // ── 07:00 — Auto-estimate if yesterday unconfirmed ─────────
+  // ── 07:00 — Remind if yesterday unconfirmed ────────────────
   const autoTask = cron.schedule(
     '0 7 * * *',
     async () => {
@@ -78,22 +76,9 @@ export function scheduleDailyConfirmCrons(
           return;
         }
 
-        const results = await applyDailyEstimates();
-        const streak = await incrementNoReplyStreak();
-
-        if (results.length === 0) {
-          logger.info('Auto-estimate: nothing to deduct (all items at 0)');
-          return;
-        }
-
-        let message = `🤖 昨日未回覆，已自動記錄消耗：\n─────────────────\n${results.join('\n')}`;
-
-        if (streak >= 3) {
-          message += `\n\n⚠️ 已連續 ${streak} 天未確認，建議重新盤點庫存！\n傳「開始盤點」重新確認庫存`;
-        }
-
+        const message = `⚠️ 昨日消耗確認未回覆，庫存未更新。\n請手動回覆實際用量，例如：「今天用了洋蔥 2 顆」`;
         await pushToAdapters(adapters, message);
-        logger.info({ streak, estimatedCount: results.length }, 'Auto-estimate applied');
+        logger.info('Daily confirm reminder sent (no auto-deduction)');
       } catch (err) {
         logger.error({ err }, 'Auto-estimate cron failed');
       }

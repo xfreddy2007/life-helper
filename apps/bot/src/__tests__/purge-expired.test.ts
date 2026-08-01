@@ -316,7 +316,7 @@ describe('handlePurgeExpiredFlow – step 1', () => {
   it('re-prompts on invalid input at step 1', async () => {
     const sess = makeSession(1, { batches: storedBatches, pendingPurge });
     const replies = await handlePurgeExpiredFlow(makeNlu({ rawText: '什麼' }), sess, SOURCE_ID);
-    expect(replies[0]!.text).toContain('請傳「確認」');
+    expect(replies[0]!.text).toContain('請選擇「確認」');
   });
 
   it('executes purge on CONFIRM_YES', async () => {

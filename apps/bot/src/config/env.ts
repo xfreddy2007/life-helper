@@ -14,11 +14,6 @@ dotEnvConfig({ path: resolve(botRoot, envFile) });
 
 export const env = createEnv({
   server: {
-    // LINE Bot
-    LINE_CHANNEL_ACCESS_TOKEN: z.string().min(1),
-    LINE_CHANNEL_SECRET: z.string().min(1),
-    LINE_GROUP_ID: z.string().min(1).optional(),
-
     // Anthropic Claude API
     ANTHROPIC_API_KEY: z.string().startsWith('sk-'),
 
@@ -28,10 +23,10 @@ export const env = createEnv({
     // Redis
     REDIS_URL: z.string().min(1),
 
-    // Slack Bot (optional — both tokens required to enable Slack)
-    SLACK_BOT_TOKEN: z.string().startsWith('xoxb-').optional(),
-    SLACK_APP_TOKEN: z.string().startsWith('xapp-').optional(),
-    SLACK_DEFAULT_CHANNEL: z.string().optional(),
+    // Slack Bot (required — Slack is the only messaging channel)
+    SLACK_BOT_TOKEN: z.string().startsWith('xoxb-'),
+    SLACK_APP_TOKEN: z.string().startsWith('xapp-'),
+    SLACK_DEFAULT_CHANNEL: z.string().min(1),
 
     // Sentry (optional)
     SENTRY_DSN: z.string().url().optional(),

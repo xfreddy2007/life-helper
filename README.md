@@ -2,7 +2,7 @@
 
 > A Slack Bot-powered household management assistant that helps families track inventory, monitor consumption, and receive smart purchase reminders — all through natural language conversation.
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](./package.json)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue)](./package.json)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17.0-green)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](#license)
 
@@ -203,7 +203,7 @@ main        ← production (protected)
 | --------- | ---------------------- | ----------------- |
 | `main`    | Stable production code | Fly.io production |
 | `staging` | Pre-release testing    | Fly.io staging    |
-| `dev`     | Daily development work | Local / ngrok     |
+| `dev`     | Daily development work | Local             |
 
 **Workflow:**
 

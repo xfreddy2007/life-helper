@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.0.0 — 2026-08-01
+
+### Breaking Changes
+
+- Sunset the LINE channel; Slack is now the sole messaging interface (1789cd9)
+  - `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, and `SLACK_DEFAULT_CHANNEL` are now **required** — the bot will not start without them
+  - All `LINE_*` env vars removed; `@line/bot-sdk` dependency dropped
+  - LINE webhook route, signature middleware, and adapter deleted; express now serves `/health` only
+  - Daily cron now pushes to `SLACK_DEFAULT_CHANNEL` instead of the LINE user registry
+
+### Other Changes
+
+- finalize Slack-only README, bump version badge, drop ngrok setup (dd598c5)
+- migrate project e2e-test skill to config-driven approach (69d1070)
+- bump version to 2.0.0 (f80e43f)
+
 ## v1.4.0 — 2026-05-20
 
 ### Bug Fixes

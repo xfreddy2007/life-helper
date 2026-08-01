@@ -1,7 +1,7 @@
 import type { ReplyMessage } from '../handlers/intent-router.js';
 
 export interface MessagingAdapter {
-  platform: 'line' | 'slack';
+  platform: 'slack';
   push(channelId: string, messages: ReplyMessage[]): Promise<void>;
 }
 

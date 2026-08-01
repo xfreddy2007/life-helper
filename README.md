@@ -1,8 +1,8 @@
 # 居家生活小幫手 (Life Helper)
 
-> A LINE Bot-powered household management assistant that helps families track inventory, monitor consumption, and receive smart purchase reminders — all through natural language conversation.
+> A Slack Bot-powered household management assistant that helps families track inventory, monitor consumption, and receive smart purchase reminders — all through natural language conversation.
 
-[![Version](https://img.shields.io/badge/version-0.1.0-blue)](./package.json)
+[![Version](https://img.shields.io/badge/version-1.4.0-blue)](./package.json)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17.0-green)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-green)](#license)
 
@@ -10,7 +10,7 @@
 
 ## Overview
 
-Life Helper is a family-oriented LINE Bot that manages household supplies. Members of a shared LINE group can interact with the bot using natural language to:
+Life Helper is a family-oriented Slack Bot that manages household supplies. Members of a shared Slack channel can interact with the bot using natural language to:
 
 - Query current inventory levels by item or category
 - Record consumption after cooking or daily use (with anomaly detection)
@@ -27,7 +27,7 @@ Life Helper is a family-oriented LINE Bot that manages household supplies. Membe
 | Layer            | Technology                                                                                                  |
 | ---------------- | ----------------------------------------------------------------------------------------------------------- |
 | Monorepo         | [Turborepo](https://turbo.build) + npm workspaces                                                           |
-| Bot Interface    | [LINE Messaging API](https://developers.line.biz/en/docs/messaging-api/) (`@line/bot-sdk` v9)               |
+| Bot Interface    | [Slack Bolt](https://tools.slack.dev/bolt-js/) (`@slack/bolt` v3, Socket Mode)                              |
 | Backend API      | [Express](https://expressjs.com) v4 + [ts-rest](https://ts-rest.com)                                        |
 | AI / NLU         | [Anthropic Claude API](https://docs.anthropic.com) (`claude-sonnet-4-6`) with Prompt Caching                |
 | Database         | PostgreSQL 16 (local: Docker; production: Fly Managed Postgres)                                             |
@@ -76,15 +76,15 @@ cp .env.example .env
 
 Open `.env` and fill in the required values:
 
-| Variable                    | Description                          | Where to get                                           |
-| --------------------------- | ------------------------------------ | ------------------------------------------------------ |
-| `LINE_CHANNEL_ACCESS_TOKEN` | LINE Bot channel token               | [LINE Developer Console](https://developers.line.biz)  |
-| `LINE_CHANNEL_SECRET`       | LINE Bot channel secret              | [LINE Developer Console](https://developers.line.biz)  |
-| `LINE_GROUP_ID`             | Target LINE group ID                 | From incoming webhook payload                          |
-| `ANTHROPIC_API_KEY`         | Claude API key                       | [console.anthropic.com](https://console.anthropic.com) |
-| `DATABASE_URL`              | PostgreSQL connection string         | Pre-filled for local Docker                            |
-| `REDIS_URL`                 | Redis connection string              | Pre-filled for local Docker                            |
-| `SENTRY_DSN`                | Sentry error tracking DSN (optional) | [sentry.io](https://sentry.io)                         |
+| Variable                | Description                          | Where to get                                           |
+| ----------------------- | ------------------------------------ | ------------------------------------------------------ |
+| `SLACK_BOT_TOKEN`       | Slack bot token (`xoxb-`)            | [api.slack.com/apps](https://api.slack.com/apps)       |
+| `SLACK_APP_TOKEN`       | Slack app-level token (`xapp-`)      | [api.slack.com/apps](https://api.slack.com/apps)       |
+| `SLACK_DEFAULT_CHANNEL` | Target Slack channel ID              | Channel details in Slack                               |
+| `ANTHROPIC_API_KEY`     | Claude API key                       | [console.anthropic.com](https://console.anthropic.com) |
+| `DATABASE_URL`          | PostgreSQL connection string         | Pre-filled for local Docker                            |
+| `REDIS_URL`             | Redis connection string              | Pre-filled for local Docker                            |
+| `SENTRY_DSN`            | Sentry error tracking DSN (optional) | [sentry.io](https://sentry.io)                         |
 
 ### 4. Start local infrastructure
 
@@ -122,25 +122,17 @@ npm run db:seed --workspace=packages/database
 npm run dev
 ```
 
-The bot server starts on `http://localhost:3000`.
+The bot server starts on `http://localhost:3000` (health check only). The Slack
+connection uses **Socket Mode**, so no public HTTPS URL or webhook is required.
 
-### 7. Expose local server for LINE Webhook
+### 7. Configure the Slack app
 
-LINE requires a public HTTPS URL. Use [ngrok](https://ngrok.com) during local development:
+In your [Slack app](https://api.slack.com/apps):
 
-```bash
-# Install ngrok
-brew install ngrok
-
-# In a separate terminal
-ngrok http 3000
-```
-
-Copy the HTTPS forwarding URL (e.g. `https://xxxx.ngrok-free.app`) and set the webhook URL in the LINE Developer Console:
-
-```
-https://xxxx.ngrok-free.app/webhook
-```
+- Enable **Socket Mode** and generate an app-level token (`xapp-`) → `SLACK_APP_TOKEN`
+- Under **OAuth & Permissions**, install the app and copy the bot token (`xoxb-`) → `SLACK_BOT_TOKEN`
+- Subscribe to bot events: `message.channels`, `app_mention`, `app_home_opened`
+- Invite the bot to your target channel and copy its ID → `SLACK_DEFAULT_CHANNEL`
 
 ---
 
@@ -149,7 +141,7 @@ https://xxxx.ngrok-free.app/webhook
 ```
 life-helper/
 ├── apps/
-│   └── bot/                  # LINE Bot + Express API server
+│   └── bot/                  # Slack Bot + Express health server
 │       └── src/
 │           ├── main.ts        # Server entry point
 │           ├── handlers/      # Intent handlers (inventory, consumption, etc.)
@@ -211,7 +203,7 @@ main        ← production (protected)
 | --------- | ---------------------- | ----------------- |
 | `main`    | Stable production code | Fly.io production |
 | `staging` | Pre-release testing    | Fly.io staging    |
-| `dev`     | Daily development work | Local / ngrok     |
+| `dev`     | Daily development work | Local             |
 
 **Workflow:**
 
@@ -308,7 +300,11 @@ Infrastructure files (cron jobs, Express wiring, config, Redis client) are exclu
 
 ## Deployment
 
-The bot is deployed to [Fly.io](https://fly.io) in the Singapore (`sin`) region for low-latency LINE webhook responses from Taiwan.
+The bot is deployed to [Fly.io](https://fly.io) in the Singapore (`sin`) region for low latency from Taiwan. The Slack connection uses Socket Mode (outbound), so set the Slack secrets as Fly secrets before deploying:
+
+```bash
+flyctl secrets set SLACK_BOT_TOKEN=xoxb-... SLACK_APP_TOKEN=xapp-... SLACK_DEFAULT_CHANNEL=...
+```
 
 ```bash
 # Install Fly CLI
@@ -327,7 +323,7 @@ Refer to `fly.toml` for machine configuration.
 
 ## Environment Requirements
 
-- **LINE Official Account** with Messaging API enabled
+- **Slack app** with Socket Mode enabled and bot installed to the workspace
 - **Anthropic API** account with access to `claude-sonnet-4-6`
 - **Fly.io** account (for production deployment)
 - **Upstash Redis** account (for production Redis)

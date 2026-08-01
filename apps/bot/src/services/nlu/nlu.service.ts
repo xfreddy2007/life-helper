@@ -9,7 +9,7 @@ export class NluUnavailableError extends Error {
   }
 }
 
-const SYSTEM_PROMPT = `你是「居家生活小幫手」LINE Bot 的自然語言理解模組。
+const SYSTEM_PROMPT = `你是「居家生活小幫手」Slack Bot 的自然語言理解模組。
 你的任務是解析使用者傳入的訊息，辨識意圖並萃取結構化實體資料。
 
 ## 意圖分類

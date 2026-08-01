@@ -126,7 +126,7 @@ export function buildFeaturesMenu(): ReplyMessage {
 
 /**
  * Routes a parsed NLU result to the appropriate handler.
- * Returns the reply message(s) to send back to LINE.
+ * Returns the reply message(s) to send back to the user.
  */
 export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
   const { nluResult, session, sourceId } = ctx;

@@ -171,6 +171,7 @@ describe('session conflict guard', () => {
     expect(replies[0]?.text).toContain('補充庫存');
     expect(replies[0]?.text).toContain('正在進行中');
     expect(replies[0]?.quickReply?.items).toHaveLength(2);
+    expect(replies[0]?.text).toContain('要放棄目前操作');
     expect(mockSetSession).toHaveBeenCalledWith(
       'group-test',
       expect.objectContaining({ flow: 'SESSION_INTERRUPT' }),

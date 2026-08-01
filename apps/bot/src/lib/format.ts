@@ -43,7 +43,7 @@ export function formatBatches(batches: ExpiryBatch[]): string {
 }
 
 /**
- * Build a LINE text message for a list of items with stock levels.
+ * Build a text message for a list of items with stock levels.
  */
 export function formatInventoryList(
   items: Array<{
@@ -96,7 +96,7 @@ export function formatInventoryList(
 }
 
 /**
- * Format a purchase recommendation list as a LINE text message.
+ * Format a purchase recommendation list as a text message.
  */
 export function formatPurchaseList(
   recommendations: PurchaseRecommendation[],

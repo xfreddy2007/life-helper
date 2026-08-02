@@ -199,12 +199,21 @@ When a step is marked `[BUTTON CLICK: 確認]` or `[BUTTON CLICK: 取消]`:
 - Input: `今天用了白米 0.5 kg`
 - Expected: bot reply contains `消耗記錄完成` and `白米 -0.5kg`
 
-**D2 — Anomaly detection (large amount)**
+**D2a — Consumption exceeding available stock**
 
 - Input: `用了白米 100 kg`
-- Expected: bot reply contains confirmation prompt (anomaly) with Block Kit 確認/取消 buttons
-- Follow-up: `[BUTTON CLICK: 取消]`
-- Expected: `已取消` or similar cancellation
+- Expected: bot reply contains `目前庫存只有` and `請確認數量是否正確` — nothing recorded, no session opened
+- Note: the stock check in `record-consumption.handler.ts` runs _before_ anomaly detection, so any
+  quantity above current stock hits this guard and can never reach the anomaly path
+
+**D2b — Anomaly detection (within stock, abnormal vs history)**
+
+- Pre-condition: 白米 stock is 1.5kg and recent logs are ~0.5kg (state after D1)
+- Input: `用了白米 1.4 kg`
+- Expected: bot reply contains `確認要記錄嗎` with Block Kit 確認/取消 buttons
+- Follow-up: `[BUTTON CLICK: 取消]` (or type `取消`)
+- Expected: `已取消，消耗未記錄`
+- Note: quantity must stay at or below current stock, otherwise D2a's guard fires first
 
 **D3 — Query after consumption**
 
@@ -243,9 +252,21 @@ When a step is marked `[BUTTON CLICK: 確認]` or `[BUTTON CLICK: 取消]`:
 **E2 — Interrupt with passthrough**
 
 - Input: `開始盤點`
-- Expected: onboarding starts
+- Expected: RESET_CONFIRM prompt with Block Kit 確認/取消 buttons
 - Interrupt input: `查詢庫存`
-- Expected: query passes through (QUERY_INVENTORY is SESSION_PASSTHROUGH — no conflict guard)
+- Expected: bot answers with the inventory listing (`目前庫存`), NOT the conflict guard (`正在進行中`)
+  and NOT the flow re-prompt (`請選擇「確認」清除並重新盤點`)
+- Expected: reply ends with a reminder containing `全量庫存重置確認` and `仍在進行中`
+- Cleanup: `取消` → `已取消，庫存未變動`
+- Note: read-only intents are dispatched ahead of the flow blocks in `intent-router.ts`; the active
+  session is left untouched so the user can resume
+
+**E3 — Onboarding keeps its own query re-prompt**
+
+- Input: `開始盤點`, then `[BUTTON CLICK: 確認]` to enter the ONBOARDING flow
+- Interrupt input: `查詢庫存`
+- Expected: `盤點正在進行中` re-prompt — ONBOARDING is deliberately excluded from read-only passthrough
+- Cleanup: `完成` to end the stocktake
 
 ---
 
@@ -255,7 +276,10 @@ When a step is marked `[BUTTON CLICK: 確認]` or `[BUTTON CLICK: 取消]`:
 
 - Input: `撤銷操作`
 - Expected: bot lists recent operations (contains `白米` or a log entry)
-- Follow-up input: `1`
+- Follow-up input: the number of the **single-item** consumption entry — `消耗 白米 -0.5kg` from D1
+  - After D4 the newest entry (`1`) is the multi-item `消耗批次（2 項）`, which belongs to F2.
+    Selecting it here yields `批次撤銷完成（2 項）` instead of the single-op message below.
+  - With the D1–D4 sequence intact this is entry `2`; confirm against the actual listing before replying
   - Note: Slack MCP appends `*發送工具* Claude` to messages; `parseInt` still extracts the leading digit correctly
 - Expected: bot shows confirmation `確認要撤銷：…` with Block Kit 確認/取消 buttons
 - Follow-up: `[BUTTON CLICK: 確認]`

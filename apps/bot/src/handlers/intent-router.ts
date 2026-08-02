@@ -69,6 +69,14 @@ const SESSION_PASSTHROUGH_INTENTS = new Set<Intent>([
   'SHOW_FEATURES', // informational — safe to show at any time
 ]);
 
+// Read-only intents that must still be answered while a flow is active.
+// They already skip the conflict guard above, but the flow blocks in routeIntent
+// re-prompt on "any other message" — without dispatching them ahead of those blocks
+// the query would be swallowed and never reach its own handler.
+// ONBOARDING is deliberately excluded: it has its own QUERY_INVENTORY branch that
+// keeps the user focused on the stocktake.
+const READ_ONLY_PASSTHROUGH_INTENTS = new Set<Intent>(['QUERY_INVENTORY', 'QUERY_PURCHASE_LIST']);
+
 // Human-readable label for each intent that can be pending in SESSION_INTERRUPT.
 const INTENT_LABELS: Partial<Record<Intent, string>> = {
   START_ONBOARDING: '庫存盤點',
@@ -191,6 +199,20 @@ export async function routeIntent(ctx: RouterContext): Promise<ReplyMessage[]> {
   // ── SHOW_FEATURES always returns the menu, regardless of active session ──
   if (nluResult.intent === 'SHOW_FEATURES') {
     return [buildFeaturesMenu()];
+  }
+
+  // ── Read-only queries answer mid-flow, then remind what's still pending ──
+  if (
+    session &&
+    session.flow !== 'ONBOARDING' &&
+    READ_ONLY_PASSTHROUGH_INTENTS.has(nluResult.intent)
+  ) {
+    const replies =
+      nluResult.intent === 'QUERY_INVENTORY'
+        ? await handleQueryInventory(nluResult)
+        : await handleQueryPurchaseList();
+    const currentLabel = FLOW_LABELS[session.flow as ConversationFlow] ?? '目前操作';
+    return [...replies, { type: 'text', text: `⏳ 「${currentLabel}」仍在進行中，請繼續操作。` }];
   }
 
   // ── Active multi-step flows ──────────────────────────────

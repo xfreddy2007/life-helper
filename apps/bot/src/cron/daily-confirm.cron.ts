@@ -4,6 +4,7 @@ import {
   buildDailyEstimates,
   setDailyConfirmSent,
   isDailyConfirmPending,
+  hasConsumptionSession,
   resetNoReplyStreak,
   todayString,
 } from '../services/daily-confirm.service.js';
@@ -39,6 +40,16 @@ export function scheduleDailyConfirmCrons(
     async () => {
       logger.info('Running daily confirm push cron');
       try {
+        const today = todayString();
+
+        // A consumption session already happened today (00:00 → now), so the
+        // user has told us the real usage — no estimate confirmation needed.
+        if (await hasConsumptionSession(today, new Date())) {
+          await resetNoReplyStreak();
+          logger.info({ date: today }, 'Consumption already recorded today, skipping confirm push');
+          return;
+        }
+
         const items = await listItems();
         const estimates = buildDailyEstimates(items);
 
@@ -47,7 +58,6 @@ export function scheduleDailyConfirmCrons(
           return;
         }
 
-        const today = todayString();
         await setDailyConfirmSent(today);
 
         const message = formatDailyConfirm(estimates);
@@ -73,6 +83,14 @@ export function scheduleDailyConfirmCrons(
         if (!pending) {
           await resetNoReplyStreak();
           logger.info('Yesterday confirmed, streak reset');
+          return;
+        }
+
+        // The prompt went out, but the user may have replied with actual usage
+        // afterwards (e.g. 23:30). Full-day window, so a late reply still counts.
+        if (await hasConsumptionSession(yesterday)) {
+          await resetNoReplyStreak();
+          logger.info({ date: yesterday }, 'Consumption recorded yesterday, skipping reminder');
           return;
         }
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.0.1 — 2026-08-02
+
+### Bug Fixes
+
+- gate daily confirm messages on actual consumption sessions (480d3f9)
+  - the 07:00 "昨日消耗確認未回覆" reminder fired every day regardless of user activity, because `markDailyConfirmConfirmed()` was never called and the Redis key stayed `SENT` indefinitely
+  - the 23:00 push now skips entirely when a manual consumption was already logged that day (00:00 → trigger time)
+  - the 07:00 reminder is additionally suppressed when a manual consumption exists anywhere in yesterday's full Taipei day, so a late reply after the prompt still counts
+- dispatch read-only queries ahead of active flow blocks (472bae3)
+  - `QUERY_INVENTORY` / `QUERY_PURCHASE_LIST` skipped the session conflict guard but were then swallowed by the active flow's re-prompt, so asking 「查詢庫存」 mid-flow never returned the inventory
+  - they are now answered before the flow blocks run, followed by a reminder naming the still-pending flow; the session is left intact
+  - `ONBOARDING` keeps its own deliberate re-prompt
+
+### Other Changes
+
+- bump version to 2.0.1 (d36457e)
+
 ## v2.0.0 — 2026-08-01
 
 ### Breaking Changes

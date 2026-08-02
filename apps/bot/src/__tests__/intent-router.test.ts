@@ -19,6 +19,8 @@ vi.mock('@life-helper/database/repositories', () => ({
   findCategoryByName: vi.fn().mockResolvedValue(null),
   getDefaultCategory: vi.fn().mockResolvedValue({ id: 'cat-1', name: '食材' }),
   getRecentConsumptionLogs: vi.fn().mockResolvedValue([]),
+  getActivePurchaseList: vi.fn().mockResolvedValue(null),
+  createPurchaseList: vi.fn().mockResolvedValue({ id: 'pl-1', items: [] }),
   listCategories: vi
     .fn()
     .mockResolvedValue([{ id: 'cat-1', name: '食材', isDefault: true, defaultExpiryAlertDays: 3 }]),
@@ -308,7 +310,7 @@ describe('session conflict guard', () => {
       session: { flow: 'RESTOCK_EXPIRY', step: 1, data: {}, expiresAt: Date.now() + 99999 },
       nluResult: { intent: 'QUERY_INVENTORY', entities: {}, rawText: '查庫存', confidence: 0.9 },
     });
-    // QUERY_INVENTORY is in SESSION_PASSTHROUGH_INTENTS → goes to handleRestockExpiryResponse
+    // QUERY_INVENTORY is in SESSION_PASSTHROUGH_INTENTS → answered by handleQueryInventory
     await routeIntent(ctx);
     expect(mockSetSession).not.toHaveBeenCalledWith(
       'group-test',
@@ -339,5 +341,77 @@ describe('session conflict guard', () => {
       'group-test',
       expect.objectContaining({ flow: 'SESSION_INTERRUPT' }),
     );
+  });
+});
+
+describe('read-only passthrough mid-flow', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('answers QUERY_INVENTORY during RESET_CONFIRM instead of re-prompting', async () => {
+    const ctx = makeCtx({
+      session: { flow: 'RESET_CONFIRM', step: 0, data: {}, expiresAt: Date.now() + 99999 },
+      nluResult: { intent: 'QUERY_INVENTORY', entities: {}, rawText: '查詢庫存', confidence: 0.9 },
+    });
+    const replies = await routeIntent(ctx);
+    expect(replies[0]?.text).toContain('庫存');
+    expect(replies[0]?.text).not.toContain('請選擇「確認」清除並重新盤點');
+  });
+
+  it('appends a reminder naming the still-active flow', async () => {
+    const ctx = makeCtx({
+      session: { flow: 'RESET_CONFIRM', step: 0, data: {}, expiresAt: Date.now() + 99999 },
+      nluResult: { intent: 'QUERY_INVENTORY', entities: {}, rawText: '查詢庫存', confidence: 0.9 },
+    });
+    const replies = await routeIntent(ctx);
+    expect(replies.at(-1)?.text).toContain('全量庫存重置確認');
+    expect(replies.at(-1)?.text).toContain('仍在進行中');
+  });
+
+  it('leaves the active session untouched', async () => {
+    const ctx = makeCtx({
+      session: { flow: 'REVERT_SELECT', step: 0, data: {}, expiresAt: Date.now() + 99999 },
+      nluResult: { intent: 'QUERY_INVENTORY', entities: {}, rawText: '查詢庫存', confidence: 0.9 },
+    });
+    await routeIntent(ctx);
+    expect(mockSetSession).not.toHaveBeenCalled();
+    expect(mockClearSession).not.toHaveBeenCalled();
+  });
+
+  it('answers QUERY_PURCHASE_LIST during PARTIAL_RESET_CONFIRM', async () => {
+    const ctx = makeCtx({
+      session: {
+        flow: 'PARTIAL_RESET_CONFIRM',
+        step: 0,
+        data: {},
+        expiresAt: Date.now() + 99999,
+      },
+      nluResult: {
+        intent: 'QUERY_PURCHASE_LIST',
+        entities: {},
+        rawText: '採購清單',
+        confidence: 0.9,
+      },
+    });
+    const replies = await routeIntent(ctx);
+    expect(replies.at(-1)?.text).toContain('部分庫存重置確認');
+    expect(replies[0]?.text).not.toContain('請選擇「確認」繼續重置');
+  });
+
+  it('ONBOARDING keeps its own QUERY_INVENTORY re-prompt', async () => {
+    const ctx = makeCtx({
+      session: { flow: 'ONBOARDING', step: 1, data: {}, expiresAt: Date.now() + 99999 },
+      nluResult: { intent: 'QUERY_INVENTORY', entities: {}, rawText: '查詢庫存', confidence: 0.9 },
+    });
+    const replies = await routeIntent(ctx);
+    expect(replies[0]?.text).toContain('盤點正在進行中');
+  });
+
+  it('still answers QUERY_INVENTORY normally with no active session', async () => {
+    const ctx = makeCtx({
+      nluResult: { intent: 'QUERY_INVENTORY', entities: {}, rawText: '查詢庫存', confidence: 0.9 },
+    });
+    const replies = await routeIntent(ctx);
+    expect(replies).toHaveLength(1);
+    expect(replies[0]?.text).toContain('庫存');
   });
 });

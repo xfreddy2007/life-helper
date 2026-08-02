@@ -1,6 +1,6 @@
 import { prisma } from '@life-helper/database';
 import type { ExpiryBatch } from '@life-helper/database';
-import { listItems } from '@life-helper/database/repositories';
+import { listItems, hasManualConsumptionBetween } from '@life-helper/database/repositories';
 import { planFifoDeduction } from './fifo.service.js';
 import { getRedis } from '../lib/redis.js';
 
@@ -101,6 +101,30 @@ export async function applyDailyEstimates(): Promise<string[]> {
  */
 export function todayString(now = new Date()): string {
   return now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Taipei' });
+}
+
+/**
+ * UTC instants bounding a Taipei calendar day (half-open: [start, end)).
+ * Asia/Taipei is a fixed UTC+8 offset with no DST, so the literal offset is safe.
+ */
+export function taipeiDayBounds(date: string): { start: Date; end: Date } {
+  const start = new Date(`${date}T00:00:00+08:00`);
+  const end = new Date(start.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+
+/**
+ * True if the user recorded any real consumption during the given Taipei day.
+ * System-estimated logs (isEstimated) don't count as a user session.
+ *
+ * `until` optionally caps the window (e.g. the 23:00 push checks 00:00–23:00 only);
+ * the 07:00 reminder uses the full day so a reply sent after the push still counts.
+ */
+export async function hasConsumptionSession(date: string, until?: Date): Promise<boolean> {
+  const { start, end } = taipeiDayBounds(date);
+  const upper = until && until < end ? until : end;
+  if (upper <= start) return false;
+  return hasManualConsumptionBetween(start, upper);
 }
 
 // ── Redis state helpers ───────────────────────────────────────
